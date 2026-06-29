@@ -1,0 +1,24 @@
+# dependencies
+node_modules/
+
+# next.js
+.next/
+out/
+
+# env
+.env
+.env.local
+.env.*.local
+
+# vercel
+.vercel
+
+# debug / OS
+.DS_Store
+*.log
+npm-debug.log*
+
+# temp GAS inject artifacts
+scripts/cdp-*
+scripts/_compact-*
+scripts/_payload-*

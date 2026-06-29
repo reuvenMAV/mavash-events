@@ -1,0 +1,208 @@
+{
+  "name": "MAVASH Events — HERMES webhook",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "mavash-events-hermes",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [-640, 0],
+      "id": "a1000001-0001-4000-8000-000000000001",
+      "name": "Webhook HERMES",
+      "webhookId": "mavash-events-hermes"
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $json.body || $json;\nconst key = $headers['x-hermes-key'] || body.key || '';\nconst expected = String($env.N8N_EVENTS_WEBHOOK_KEY || '').trim();\nif (expected && key !== expected) {\n  throw new Error('Invalid HERMES key');\n}\nif (body.source !== 'mavash-events') {\n  throw new Error('Unknown source');\n}\nconst site = $env.MAVASH_EVENTS_SITE_URL || 'https://mavash-events.vercel.app';\nreturn [{ json: { ...body, siteUrl: site } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-400, 0],
+      "id": "a1000002-0002-4000-8000-000000000002",
+      "name": "Validate + Enrich"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict" },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.type }}",
+                    "rightValue": "rsvp.submitted",
+                    "operator": { "type": "string", "operation": "equals" }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "rsvp"
+            },
+            {
+              "conditions": {
+                "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict" },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.type }}",
+                    "rightValue": "blessing.added",
+                    "operator": { "type": "string", "operation": "equals" }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "blessing"
+            },
+            {
+              "conditions": {
+                "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict" },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.type }}",
+                    "rightValue": "photos.uploaded",
+                    "operator": { "type": "string", "operation": "equals" }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "photos"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [-160, 0],
+      "id": "a1000003-0003-4000-8000-000000000003",
+      "name": "Route by type"
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $env.HERMES_TELEGRAM_CHAT_ID }}",
+        "text": "={{ '✅ RSVP חדש\\nאירוע: ' + $json.slug + '\\nשם: ' + ($json.data.name || '') + '\\nסטטוס: ' + ($json.data.status || '') + '\\nדשבורד: ' + $json.siteUrl + '/dashboard/' + $json.slug }}",
+        "additionalFields": { "appendAttribution": false }
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [120, -160],
+      "id": "a1000004-0004-4000-8000-000000000004",
+      "name": "Telegram RSVP",
+      "credentials": {
+        "telegramApi": {
+          "name": "Telegram אישור הגעה"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $env.HERMES_TELEGRAM_CHAT_ID }}",
+        "text": "={{ '💌 ברכה חדשה\\nאירוע: ' + $json.slug + '\\nמאת: ' + ($json.data.guestName || '') + '\\n' + ($json.data.message || '').substring(0, 200) }}",
+        "additionalFields": { "appendAttribution": false }
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [120, 0],
+      "id": "a1000005-0005-4000-8000-000000000005",
+      "name": "Telegram Blessing",
+      "credentials": {
+        "telegramApi": {
+          "name": "Telegram אישור הגעה"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $env.HERMES_TELEGRAM_CHAT_ID }}",
+        "text": "={{ '📸 תמונות חדשות\\nאירוע: ' + $json.slug + '\\nכמות: ' + ($json.data.count || 0) + '\\nגלריה: ' + $json.siteUrl + '/dashboard/' + $json.slug + '/gallery' }}",
+        "additionalFields": { "appendAttribution": false }
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [120, 160],
+      "id": "a1000006-0006-4000-8000-000000000006",
+      "name": "Telegram Photos",
+      "credentials": {
+        "telegramApi": {
+          "name": "Telegram אישור הגעה"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $env.EVENTS_ALERT_CHAT_ID || $env.LEAD_ALERT_CHAT_ID }}",
+        "message": "={{ '🎉 RSVP: ' + $('Validate + Enrich').item.json.data.name + ' — ' + $('Validate + Enrich').item.json.slug + '\\nדשבורד: ' + $('Validate + Enrich').item.json.siteUrl + '/dashboard/' + $('Validate + Enrich').item.json.slug }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-whatsapp-green-api.greenApi",
+      "typeVersion": 1,
+      "position": [360, -160],
+      "id": "a1000007-0007-4000-8000-000000000007",
+      "name": "WhatsApp RSVP (optional)",
+      "credentials": {
+        "greenApi": {
+          "name": "Green account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { ok: true } }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [600, 0],
+      "id": "a1000008-0008-4000-8000-000000000008",
+      "name": "Respond OK"
+    }
+  ],
+  "connections": {
+    "Webhook HERMES": {
+      "main": [[{ "node": "Validate + Enrich", "type": "main", "index": 0 }]]
+    },
+    "Validate + Enrich": {
+      "main": [[{ "node": "Route by type", "type": "main", "index": 0 }]]
+    },
+    "Route by type": {
+      "main": [
+        [{ "node": "Telegram RSVP", "type": "main", "index": 0 }],
+        [{ "node": "Telegram Blessing", "type": "main", "index": 0 }],
+        [{ "node": "Telegram Photos", "type": "main", "index": 0 }]
+      ]
+    },
+    "Telegram RSVP": {
+      "main": [
+        [
+          { "node": "WhatsApp RSVP (optional)", "type": "main", "index": 0 },
+          { "node": "Respond OK", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Telegram Blessing": {
+      "main": [[{ "node": "Respond OK", "type": "main", "index": 0 }]]
+    },
+    "Telegram Photos": {
+      "main": [[{ "node": "Respond OK", "type": "main", "index": 0 }]]
+    },
+    "WhatsApp RSVP (optional)": {
+      "main": [[{ "node": "Respond OK", "type": "main", "index": 0 }]]
+    }
+  },
+  "settings": { "executionOrder": "v1" },
+  "meta": {
+    "templateCredsSetupCompleted": false
+  }
+}

@@ -1,0 +1,14 @@
+@import "tailwindcss";
+
+@theme {
+  --font-body: var(--font-heebo), system-ui, sans-serif;
+  --font-heading: var(--font-frank), Georgia, serif;
+  --color-cream: #faf8f5;
+  --color-charcoal: #1a1a1a;
+  --color-gold: #c9a227;
+}
+
+body {
+  background: var(--color-cream);
+  color: var(--color-charcoal);
+}

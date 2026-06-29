@@ -1,0 +1,603 @@
+{
+  "name": "MAVASH Events — צ'אט אתר + WhatsApp",
+  "nodes": [
+    {
+      "parameters": {
+        "public": true,
+        "initialMessages": "=",
+        "options": {
+          "responseMode": "responseNode",
+          "allowedOrigins": "http://localhost:3000,https://mavash-events.vercel.app"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.chatTrigger",
+      "typeVersion": 1.4,
+      "position": [
+        -3712,
+        304
+      ],
+      "id": "00d48d3e-bb6a-4415-91ee-3f2f2e37102c",
+      "name": "When chat message received",
+      "webhookId": "b8e4f1a2-3c6d-4e8f-9a1b-2d3e4f5a6b7c"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "set-session",
+              "name": "sessionId",
+              "value": "={{ $json.metadata?.sessionId || $json.sessionId || $execution.id }}",
+              "type": "string"
+            },
+            {
+              "id": "set-input",
+              "name": "chatInput",
+              "value": "={{ $json.chatInput }}",
+              "type": "string"
+            },
+            {
+              "id": "set-service",
+              "name": "SERVICE_KEY",
+              "value": "={{ $env.LEAD_SERVICE_KEY || 'mavash_events' }}",
+              "type": "string"
+            },
+            {
+              "id": "set-site",
+              "name": "SITE_URL",
+              "value": "={{ $env.SITE_URL || 'https://mavash-events.vercel.app' }}",
+              "type": "string"
+            },
+            {
+              "id": "set-svcname",
+              "name": "SERVICE_NAME",
+              "value": "={{ $env.SERVICE_NAME || 'MAVASH Events — פלטפורמת אירועים' }}",
+              "type": "string"
+            },
+            {
+              "id": "set-alert-phone",
+              "name": "ALERT_CHAT_ID",
+              "value": "={{ $env.LEAD_ALERT_CHAT_ID || '972544223911@c.us' }}",
+              "type": "string"
+            },
+            {
+              "id": "set-lead-source",
+              "name": "LEAD_SOURCE",
+              "value": "={{ $json.metadata?.source || 'אתר — MAVASH Events' }}",
+              "type": "string"
+            },
+            {
+              "id": "set-page-url",
+              "name": "PAGE_URL",
+              "value": "={{ $json.metadata?.pageUrl || $env.SITE_URL || 'https://mizva.mavash.net' }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -3424,
+        320
+      ],
+      "id": "a0e8e6d1-ca3d-4c24-86c4-3b182c3b822e",
+      "name": "2️⃣ Set Session Context"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.chatInput }}",
+        "hasOutputParser": true,
+        "options": {
+          "systemMessage": "You are a helpful bot for MAVASH Events — SaaS platform for events (bar mitzvah, wedding, brit): RSVP, digital guest book, photo sharing, owner dashboard.\n\nRespond ONLY with the fields defined by the output schema. No markdown fences.\n\nFlow:\n1. Greeting / first message:\nreply: \"היי! 👋 אני העוזר של MAVASH Events. רוצים לפתוח אירוע משלכם, או שאלתם כאורחים על RSVP/ברכות/תמונות?\", done: false\n\n2. User asks how platform works OR guest questions (RSVP, blessings, photos):\nExplain briefly in Hebrew: register → create event → share link ?t=TOKEN → guests RSVP/blessings/upload → owner dashboard. For guests: use tabs אישור הגעה / ברכה / תמונות.\ndone: false unless they want a human callback.\n\n3. User wants demo / pricing / personal help:\nreply: ask for name + phone for callback, done: false\n\n4. User gives name + phone:\nreply: \"תודה {name}! נחזור אליכם בהקדם 🎉\", done: true\nlead.name, lead.phone, lead.email (empty if missing), lead.summary: what they need (new event, guest help, pricing)\n\nRules: Hebrew, warm, concise. Platform URL: mavash-events.vercel.app. Never invent event-specific data. If eventSlug in context, mention they are on a guest page."
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        -3136,
+        320
+      ],
+      "id": "e0eb60cd-6caa-4a9a-88c9-29562f15d635",
+      "name": "5️⃣ AI Sales Agent"
+    },
+    {
+      "parameters": {
+        "model": "anthropic/claude-haiku-4.5",
+        "options": {
+          "temperature": 0.2
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenRouter",
+      "typeVersion": 1,
+      "position": [
+        -3200,
+        544
+      ],
+      "id": "aaad0304-ca8a-42cf-9be8-2c7152fc39db",
+      "name": "3️⃣ OpenRouter LLM",
+      "credentials": {
+        "openRouterApi": {
+          "id": "4hG5xLlDfYei8CH5",
+          "name": "OpenRouter account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "={{ $('2️⃣ Set Session Context').item.json.sessionId }}",
+        "contextWindowLength": 10
+      },
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.3,
+      "position": [
+        -3072,
+        544
+      ],
+      "id": "0be36d68-43a4-46f2-9029-2c0eac0394c0",
+      "name": "4️⃣ Window Buffer Memory"
+    },
+    {
+      "parameters": {
+        "schemaType": "manual",
+        "inputSchema": "{\n  \"type\": \"object\",\n  \"properties\": {\n    \"reply\": { \"type\": \"string\" },\n    \"done\": { \"type\": \"boolean\" },\n    \"lead\": {\n      \"type\": \"object\",\n      \"properties\": {\n        \"name\": { \"type\": \"string\" },\n        \"phone\": { \"type\": \"string\" },\n        \"email\": { \"type\": \"string\" },\n        \"summary\": { \"type\": \"string\" }\n      },\n      \"required\": [\"name\", \"phone\", \"email\", \"summary\"]\n    }\n  },\n  \"required\": [\"reply\", \"done\", \"lead\"]\n}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        -2944,
+        544
+      ],
+      "id": "6e34f07f-f0d3-4303-91c6-0cd1765fbd8f",
+      "name": "📐 Structured Output Parser"
+    },
+    {
+      "parameters": {
+        "jsCode": "let parsed = $json.output;\n\nif (typeof parsed === 'string') {\n  try { parsed = JSON.parse(parsed); } catch (e) {\n    const errReply = 'מצטער, הייתה תקלה. נסה שוב?';\n    return [{ json: { ok: false, reply: errReply, output: errReply, text: errReply, _clean_output: errReply, last_message: '', done: false } }];\n  }\n}\n\nif (!parsed || typeof parsed !== 'object') {\n  const errReply = 'מצטער, הייתה תקלה. נסה שוב?';\n  return [{ json: { ok: false, reply: errReply, output: errReply, text: errReply, _clean_output: errReply, last_message: '', done: false } }];\n}\n\nconst lead = parsed.lead || {};\nconst ctx = $('2️⃣ Set Session Context').item.json;\nconst replyText = parsed.reply || '';\nconst summaryText = (lead.summary || '').trim();\nconst leadSource = ctx.LEAD_SOURCE || 'אתר — ראובן מבשב';\n\nreturn [{ json: {\n  ok: true,\n  reply: replyText,\n  output: replyText,\n  text: replyText,\n  _clean_output: replyText,\n  last_message: summaryText,\n  done: !!parsed.done,\n  name: (lead.name || '').trim(),\n  phone: String(lead.phone || '').replace(/\\D/g, ''),\n  email: (lead.email || '').trim(),\n  summary: summaryText,\n  chat_id: ctx.sessionId,\n  service: ctx.SERVICE_KEY,\n  status: 'חדש',\n  source: leadSource,\n  lead_source: leadSource,\n  airtable_source: 'אתר',\n  page_url: ctx.PAGE_URL || ctx.SITE_URL || '',\n  created_at: new Date().toISOString(),\n  updated_at: new Date().toISOString()\n} }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -2736,
+        320
+      ],
+      "id": "233d76d4-8370-40e6-b816-0df9209ae04d",
+      "name": "6️⃣ Parse Sales Output"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-done",
+              "leftValue": "={{ $json.done }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            },
+            {
+              "id": "cond-has-phone",
+              "leftValue": "={{ $json.phone }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -2512,
+        320
+      ],
+      "id": "54fb9960-3d09-429a-aeb3-f2ca465939ff",
+      "name": "7️⃣ Is Done?"
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('2️⃣ Set Session Context').item.json.ALERT_CHAT_ID }}",
+        "message": "={{ '🚀 *ליד חדש — ' + $('2️⃣ Set Session Context').item.json.SERVICE_NAME + '*\\n━━━━━━━━━━━━━━━━\\n👤 *שם:* ' + $('6️⃣ Parse Sales Output').item.json.name + '\\n📞 *טלפון:* ' + $('6️⃣ Parse Sales Output').item.json.phone + '\\n📧 *מייל:* ' + ($('6️⃣ Parse Sales Output').item.json.email || 'לא צוין') + '\\n📍 *מקור הגעה:* ' + ($('6️⃣ Parse Sales Output').item.json.lead_source || 'אתר — רגע זהב') + '\\n🔗 *עמוד:* ' + ($('6️⃣ Parse Sales Output').item.json.page_url || '') + '\\n━━━━━━━━━━━━━━━━\\n📝 *סיכום הבקשה:*\\n' + ($('6️⃣ Parse Sales Output').item.json.last_message || $('6️⃣ Parse Sales Output').item.json.summary || 'לא צוין') + '\\n━━━━━━━━━━━━━━━━\\n⚡ https://wa.me/972' + String($('6️⃣ Parse Sales Output').item.json.phone || '').replace(/^0/, '').replace(/\\D/g, '') }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-whatsapp-green-api.greenApi",
+      "typeVersion": 1,
+      "position": [
+        -2288,
+        128
+      ],
+      "id": "4449fe19-5ff5-491e-aeb9-71e9cf71c8a1",
+      "name": "1️⃣4️⃣ WhatsApp – Lead Alert",
+      "credentials": {
+        "greenApi": {
+          "id": "Yt6E9F43cXq2ctMX",
+          "name": "Green account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const existing = $json;\nconst f = existing.fields || existing;\nconst newData = $('6️⃣ Parse Sales Output').item.json;\nconst existingName = String(f['שם ליד'] || '').trim();\nconst newName = (newData.name || '').trim();\nreturn [{ json: {\n  row_id: existing.id,\n  phone: f['טלפון'] || newData.phone,\n  name: existingName || newName,\n  email: f['כתובת מייל'] || newData.email,\n  last_message: '📍 ' + (newData.lead_source || 'אתר — רגע זהב') + '\\n📝 ' + (newData.summary || newData.last_message || '') + '\\n🔗 ' + (newData.page_url || ''),\n  airtable_source: 'אתר',\n  updated_at: new Date().toISOString()\n} }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1616,
+        464
+      ],
+      "id": "4a87b329-b8d1-4a2f-887b-d6252372ded2",
+      "name": "1️⃣1️⃣ Prepare Airtable Update"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "base": {
+          "__rl": true,
+          "value": "app0C3Jj4cgWQTEQm",
+          "mode": "list",
+          "cachedResultName": "מערכת CRM ראשית"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblRCwnYKpZTNRvb1",
+          "mode": "list",
+          "cachedResultName": "לידים"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "id": "={{ $json.row_id }}",
+            "הערות על הלקוח": "={{ $json.last_message }}",
+            "מקור הגעה": "={{ $json.airtable_source }}",
+            "Collaborator": 0
+          },
+          "matchingColumns": [
+            "id"
+          ],
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2,
+      "position": [
+        -1392,
+        464
+      ],
+      "id": "72946b77-ff8d-4eb7-99db-e38016428f1f",
+      "name": "1️⃣2️⃣ Airtable Update Lead",
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "8V0JrT9oUrPlDQul",
+          "name": "Airtable Personal Access bitreuven"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "chat-output",
+              "name": "output",
+              "value": "={{ $('6️⃣ Parse Sales Output').first().json.reply || $('6️⃣ Parse Sales Output').first().json._clean_output || 'תודה! ניצור איתכם קשר בהקדם 💍' }}",
+              "type": "string"
+            },
+            {
+              "id": "chat-text",
+              "name": "text",
+              "value": "={{ $('6️⃣ Parse Sales Output').first().json.reply || $('6️⃣ Parse Sales Output').first().json._clean_output || 'תודה! ניצור איתכם קשר בהקדם 💍' }}",
+              "type": "string"
+            },
+            {
+              "id": "chat-reply",
+              "name": "reply",
+              "value": "={{ $('6️⃣ Parse Sales Output').first().json.reply || $('6️⃣ Parse Sales Output').first().json._clean_output || 'תודה! ניצור איתכם קשר בהקדם 💍' }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -1280,
+        320
+      ],
+      "id": "b5e8c4a1-2d3f-4e8a-9b7c-1a2b3c4d5e6f",
+      "name": "1️⃣5️⃣ Prepare Chat Reply"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { output: $json.output, text: $json.text, reply: $json.reply } }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        -2288,
+        416
+      ],
+      "id": "e793a586-682c-4b2e-85c9-0c8d9d247321",
+      "name": "1️⃣7️⃣ Respond – Still Chatting"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { output: $json.output, text: $json.text, reply: $json.reply } }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        -1056,
+        320
+      ],
+      "id": "1f76e7af-1371-4d4d-9e80-c18cdbe408d7",
+      "name": "1️⃣6️⃣ Respond – Lead Saved"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "set-error-msg",
+              "name": "errorMessage",
+              "value": "={{ $json.error?.message || $json.message || 'Unknown error' }}",
+              "type": "string"
+            },
+            {
+              "id": "set-error-node",
+              "name": "errorNode",
+              "value": "={{ $json.error?.node?.name || 'Airtable / flow' }}",
+              "type": "string"
+            },
+            {
+              "id": "set-session-ref",
+              "name": "sessionId",
+              "value": "={{ $('2️⃣ Set Session Context').first().json.sessionId }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -1392,
+        32
+      ],
+      "id": "c70cfb34-aa7f-4cf9-9cd9-a4d25e6d3f6a",
+      "name": "1️⃣8️⃣ Capture Error Info"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "mavash-events-wa-in",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -3712,
+        560
+      ],
+      "id": "8ca269f7-b1b8-4465-b624-b0e494a8f071",
+      "name": "WhatsApp Incoming (Green API)",
+      "webhookId": "c4d5e6f7-8a9b-4c1d-9e0f-1a2b3c4d5e6f"
+    },
+    {
+      "parameters": {
+        "jsCode": "const raw = $input.first().json;\nconst body = raw.body || raw;\nlet text = '';\nlet chatId = '';\nif (body.typeWebhook === 'incomingMessageReceived') {\n  text = body.messageData?.textMessageData?.textMessage\n    || body.messageData?.extendedTextMessageData?.text || '';\n  chatId = body.senderData?.chatId || '';\n  if (!text || String(chatId).includes('@g.us')) return [];\n  return [{ json: {\n    chatInput: String(text).trim(),\n    sessionId: 'wa-' + chatId,\n    channel: 'whatsapp',\n    waChatId: chatId,\n    metadata: { source: 'WhatsApp', sourceType: 'whatsapp_inbound', sessionId: 'wa-' + chatId }\n  }}];\n}\nreturn [];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -3424,
+        560
+      ],
+      "id": "023c06f9-00ab-456c-92fe-3fe456a63282",
+      "name": "Parse WhatsApp Message"
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('6️⃣ Parse Sales Output').item.json.waChatId || $('Parse WhatsApp Message').item.json.waChatId }}",
+        "message": "={{ $('6️⃣ Parse Sales Output').item.json.reply || $('6️⃣ Parse Sales Output').item.json.output }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-whatsapp-green-api.greenApi",
+      "typeVersion": 1,
+      "position": [
+        -1056,
+        560
+      ],
+      "id": "4e069745-2b72-4be5-897c-adc48ea5d7c4",
+      "name": "WhatsApp Reply to User",
+      "credentials": {
+        "greenApi": {
+          "name": "Green account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    }
+  ],
+  "connections": {
+    "When chat message received": {
+      "main": [
+        [
+          {
+            "node": "2️⃣ Set Session Context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "WhatsApp Incoming (Green API)": {
+      "main": [
+        [
+          {
+            "node": "Parse WhatsApp Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse WhatsApp Message": {
+      "main": [
+        [
+          {
+            "node": "2️⃣ Set Session Context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "2️⃣ Set Session Context": {
+      "main": [
+        [
+          {
+            "node": "5️⃣ AI Sales Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "5️⃣ AI Sales Agent": {
+      "main": [
+        [
+          {
+            "node": "6️⃣ Parse Sales Output",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "3️⃣ OpenRouter LLM": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "5️⃣ AI Sales Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "4️⃣ Window Buffer Memory": {
+      "ai_memory": [
+        [
+          {
+            "node": "5️⃣ AI Sales Agent",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📐 Structured Output Parser": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "5️⃣ AI Sales Agent",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "6️⃣ Parse Sales Output": {
+      "main": [
+        [
+          {
+            "node": "7️⃣ Is Done?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "7️⃣ Is Done?": {
+      "main": [
+        [
+          {
+            "node": "1️⃣4️⃣ WhatsApp – Lead Alert",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "1️⃣5️⃣ Prepare Chat Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "1️⃣4️⃣ WhatsApp – Lead Alert": {
+      "main": [
+        [
+          {
+            "node": "1️⃣5️⃣ Prepare Chat Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "1️⃣5️⃣ Prepare Chat Reply": {
+      "main": [
+        [
+          {
+            "node": "1️⃣6️⃣ Respond – Lead Saved",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "1️⃣7️⃣ Respond – Still Chatting",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "WhatsApp Reply to User",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "meta": {
+    "instanceId": "71f33772c542325c132515b6972d67aefe548973786e1982c634f2d97a910933",
+    "mavashChatWebhookId": "b8e4f1a2-3c6d-4e8f-9a1b-2d3e4f5a6b7c"
+  }
+}
