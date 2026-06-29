@@ -3,6 +3,9 @@
 מערכת אירועים מודולרית — RSVP, ברכות, תמונות, דשבורד.  
 **Next.js (Vercel) → `/api/events` → Apps Script → Sheets + Drive**
 
+**GitHub:** https://github.com/reuvenMAV/mavash-events  
+**Live:** https://mavash-events.vercel.app
+
 ## מודולים
 
 | מודול | סטטוס |
