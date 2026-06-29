@@ -56,16 +56,22 @@ export default function HomePage() {
             </p>
             <div className="mt-8 flex flex-wrap justify-center gap-3">
               <Link
-                href="/admin"
+                href="/register"
                 className="inline-flex items-center gap-2 rounded-full bg-gold px-8 py-3 text-sm font-medium text-charcoal transition hover:opacity-90"
               >
                 <FolderPlus className="h-4 w-4" />
                 פתיחת אירוע חדש
               </Link>
+              <Link
+                href="/login"
+                className="rounded-full border border-white/40 px-8 py-3 text-sm transition hover:bg-white/10"
+              >
+                התחברות
+              </Link>
               {demoHref ? (
                 <Link
                   href={demoHref}
-                  className="rounded-full border border-white/40 px-8 py-3 text-sm transition hover:bg-white/10"
+                  className="rounded-full border border-white/30 px-6 py-3 text-sm opacity-90 transition hover:bg-white/10"
                 >
                   דוגמה: {DEMO_EVENT_NAME}
                 </Link>
@@ -122,10 +128,10 @@ export default function HomePage() {
             אישור הגעה → ברכה → תמונות. אתם רואים הכול בדשבורד — פיד חי, תזכורות וספר זיכרונות.
           </p>
           <Link
-            href="/admin"
+            href="/login"
             className="mt-6 inline-block rounded-full bg-charcoal px-6 py-2.5 text-sm text-cream transition hover:opacity-90"
           >
-            כניסה לניהול
+            כניסה לדשבורד
           </Link>
         </div>
       </section>

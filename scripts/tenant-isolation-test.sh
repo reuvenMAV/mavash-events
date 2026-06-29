@@ -101,5 +101,12 @@ CODE_BB="$(owner_action_status "$COOKIE_B" "$SLUG_B" "ownerListEvents")"
 }
 pass "user B can list own events (200)"
 
+CODE_BB="$(owner_action_status "$COOKIE_B" "$SLUG_A" "ownerListActivity")"
+[[ "$CODE_BB" == "403" ]] || {
+  cat /tmp/owner.json
+  fail "user B read A activity — expected 403, got ${CODE_BB}"
+}
+pass "user B blocked from A activity (403)"
+
 echo ""
 echo "=== All tenant isolation checks passed ==="

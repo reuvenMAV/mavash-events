@@ -170,6 +170,52 @@ export async function ownerPhotos(slug: string) {
   return apiOwner<{ photos: PhotoRecord[] }>({ action: "ownerListPhotos", slug });
 }
 
+export async function ownerGetRsvps(slug: string) {
+  return apiOwner<{ rsvps: import("@/types/mvp").RsvpRow[] }>({
+    action: "ownerGetRsvps",
+    slug,
+  });
+}
+
+export async function ownerListActivity(slug: string) {
+  return apiOwner<{ activity: import("@/types/mvp").ActivityRow[] }>({
+    action: "ownerListActivity",
+    slug,
+  });
+}
+
+export async function ownerListGuestsEngagement(slug: string) {
+  return apiOwner<{ guests: import("@/types/mvp").GuestEngagementRow[] }>({
+    action: "ownerListGuestsEngagement",
+    slug,
+  });
+}
+
+export async function ownerCreateGuest(
+  slug: string,
+  data: { name: string; phone?: string; email?: string }
+) {
+  return apiOwner<{ guestId: string; inviteUrl: string; qrUrl: string }>({
+    action: "ownerCreateGuest",
+    slug,
+    ...data,
+  });
+}
+
+export async function ownerGenerateMemoryBook(slug: string) {
+  return apiOwner<import("@/types/mvp").MemoryBook>({
+    action: "ownerGenerateMemoryBook",
+    slug,
+  });
+}
+
+export async function ownerGetMemoryBook(slug: string) {
+  return apiOwner<{ memoryBook: import("@/types/mvp").MemoryBook | null }>({
+    action: "ownerGetMemoryBook",
+    slug,
+  });
+}
+
 export async function adminVerify(adminKey: string) {
   return apiAdmin<{ ok: boolean }>({ action: "adminPing" }, adminKey);
 }

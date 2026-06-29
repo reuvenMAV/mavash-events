@@ -2,8 +2,10 @@ import { gasRequest } from "@/lib/gas-server";
 import type {
   AdminContext,
   AccessContext,
+  CreateEventPayload,
   EventsBackend,
   GuestContext,
+  OwnerContext,
   PhotoFilePayload,
 } from "./types";
 import type { EventRecord, RsvpPayload } from "@/types/events";
@@ -128,5 +130,84 @@ export class GasEventsBackend implements EventsBackend {
 
   async setupReminders(ctx: AdminContext) {
     return gasRequest<{ success: boolean }>("setupReminders", {}, ctx.adminKey);
+  }
+
+  private ownerPayload(ctx: OwnerContext, extra: object = {}) {
+    return { tenantId: ctx.tenantId, internalSecret: ctx.internalSecret, ...extra };
+  }
+
+  async ownerListEvents(ctx: OwnerContext) {
+    return gasRequest<{ events: EventRecord[] }>("ownerListEvents", this.ownerPayload(ctx));
+  }
+
+  async ownerCreateEvent(payload: CreateEventPayload, ctx: OwnerContext) {
+    return gasRequest<{
+      success: boolean;
+      eventId: string;
+      slug: string;
+      publicToken: string;
+    }>("ownerCreateEvent", this.ownerPayload(ctx, payload));
+  }
+
+  async ownerGetStats(slug: string, ctx: OwnerContext) {
+    return gasRequest<{ stats: import("@/types/events").EventStats }>(
+      "ownerGetStats",
+      this.ownerPayload(ctx, { slug })
+    );
+  }
+
+  async ownerListGuestsEngagement(slug: string, ctx: OwnerContext) {
+    return gasRequest<{ guests: GuestEngagementRow[] }>(
+      "ownerListGuestsEngagement",
+      this.ownerPayload(ctx, { slug })
+    );
+  }
+
+  async ownerListBlessings(slug: string, ctx: OwnerContext) {
+    return gasRequest<{ blessings: BlessingRow[] }>(
+      "ownerListBlessings",
+      this.ownerPayload(ctx, { slug })
+    );
+  }
+
+  async ownerListPhotos(slug: string, ctx: OwnerContext) {
+    return gasRequest<{ photos: PhotoRow[] }>(
+      "ownerListPhotos",
+      this.ownerPayload(ctx, { slug })
+    );
+  }
+
+  async ownerListActivity(slug: string, ctx: OwnerContext) {
+    return gasRequest<{ activity: ActivityRow[] }>(
+      "ownerListActivity",
+      this.ownerPayload(ctx, { slug })
+    );
+  }
+
+  async ownerGetRsvps(slug: string, ctx: OwnerContext) {
+    return gasRequest<{ rsvps: RsvpRow[] }>("ownerGetRsvps", this.ownerPayload(ctx, { slug }));
+  }
+
+  async ownerCreateGuest(
+    slug: string,
+    name: string,
+    ctx: OwnerContext,
+    opts?: { phone?: string; email?: string }
+  ) {
+    return gasRequest<{ guestId: string; inviteUrl: string; qrUrl: string }>(
+      "ownerCreateGuest",
+      this.ownerPayload(ctx, { slug, name, phone: opts?.phone, email: opts?.email })
+    );
+  }
+
+  async ownerGenerateMemoryBook(slug: string, ctx: OwnerContext) {
+    return gasRequest<MemoryBook>("ownerGenerateMemoryBook", this.ownerPayload(ctx, { slug }));
+  }
+
+  async ownerGetMemoryBook(slug: string, ctx: OwnerContext) {
+    return gasRequest<{ memoryBook: MemoryBook | null }>(
+      "ownerGetMemoryBook",
+      this.ownerPayload(ctx, { slug })
+    );
   }
 }

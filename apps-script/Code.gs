@@ -15,11 +15,13 @@ const SHEETS = {
   ACTIVITY: "ActivityLog",
   REMINDERS: "Reminders",
   MEMORY: "MemoryBooks",
+  USERS: "Users",
 };
 
 const HEADERS = {
   Events: [
     "eventId",
+    "tenantId",
     "slug",
     "name",
     "type",
@@ -32,6 +34,7 @@ const HEADERS = {
     "active",
     "createdAt",
   ],
+  Users: ["userId", "email", "passwordHash", "plan", "createdAt"],
   Guests: [
     "guestId",
     "eventId",
@@ -185,6 +188,34 @@ function doPost(e) {
         return jsonResponse_(getMemoryBook_(String(body.slug || "")));
       case "markComplete":
         return jsonResponse_(markGuestComplete_(body));
+      case "createUser":
+        return jsonResponse_(createUser_(body));
+      case "getUserByEmail":
+        return jsonResponse_(getUserByEmail_(body));
+      case "ownerListEvents":
+        return jsonResponse_(ownerListEvents_(body));
+      case "ownerCreateEvent":
+        return jsonResponse_(ownerCreateEvent_(body));
+      case "ownerGetStats":
+        return jsonResponse_(ownerGetStats_(body));
+      case "ownerListGuests":
+        return jsonResponse_(ownerListGuests_(body));
+      case "ownerListBlessings":
+        return jsonResponse_(ownerListBlessings_(body));
+      case "ownerListPhotos":
+        return jsonResponse_(ownerListPhotos_(body));
+      case "ownerListGuestsEngagement":
+        return jsonResponse_(ownerListGuestsEngagement_(body));
+      case "ownerListActivity":
+        return jsonResponse_(ownerListActivity_(body));
+      case "ownerCreateGuest":
+        return jsonResponse_(ownerCreateGuest_(body));
+      case "ownerGenerateMemoryBook":
+        return jsonResponse_(ownerGenerateMemoryBook_(body));
+      case "ownerGetMemoryBook":
+        return jsonResponse_(ownerGetMemoryBook_(body));
+      case "ownerGetRsvps":
+        return jsonResponse_(ownerGetRsvps_(body));
       default:
         return jsonResponse_({ error: "Unknown action: " + action }, 400);
     }
@@ -204,6 +235,7 @@ function setupWorkbook_() {
     ensureSheet_(ss, SHEETS[name] || name, HEADERS[name]);
   });
   ensureColumn_(ss.getSheetByName(SHEETS.EVENTS), "publicToken");
+  ensureColumn_(ss.getSheetByName(SHEETS.EVENTS), "tenantId");
   backfillGuestColumns_();
   backfillPublicTokens_();
   seedDemoEventIfEmpty_();
@@ -228,6 +260,7 @@ function seedDemoEventIfEmpty_() {
   const folderId = ensureEventPhotosFolder_(eventId);
   appendRow_(SHEETS.EVENTS, {
     eventId: eventId,
+    tenantId: "demo",
     slug: slug,
     name: "בר מצווה של אבנר",
     type: "bar_mitzvah",
@@ -1167,6 +1200,7 @@ function mapEventRow_(row) {
   } catch (e) {}
   return {
     eventId: String(row.eventId),
+    tenantId: String(row.tenantId || ""),
     slug: String(row.slug),
     name: String(row.name),
     type: String(row.type || "other"),
@@ -1249,6 +1283,238 @@ function installMavashEvents() {
   return result;
 }
 
+// ─── Tenant / Owner (SaaS) ───────────────────────────────────────────────────
+
+function requireInternal_(body) {
+  var expected = PropertiesService.getScriptProperties().getProperty("INTERNAL_API_SECRET");
+  if (!expected || String(body.internalSecret || "") !== String(expected)) {
+    throw new Error("אין הרשאה");
+  }
+}
+
+function requireTenant_(body) {
+  requireInternal_(body);
+  var tenantId = String(body.tenantId || "").trim();
+  if (!tenantId) throw new Error("חסר tenantId");
+  return tenantId;
+}
+
+function getEventRowBySlug_(slug) {
+  return sheetToObjects_(SHEETS.EVENTS).find(function (e) {
+    return String(e.slug) === String(slug);
+  });
+}
+
+function requireEventOwnerBySlug_(slug, tenantId) {
+  var row = getEventRowBySlug_(slug);
+  if (!row) throw new Error("אירוע לא נמצא");
+  if (String(row.tenantId || "") !== String(tenantId)) {
+    throw new Error("אין הרשאה");
+  }
+  return mapEventRow_(row);
+}
+
+function createUser_(body) {
+  requireInternal_(body);
+  var email = String(body.email || "").trim().toLowerCase();
+  var passwordHash = String(body.passwordHash || "");
+  if (!email || !passwordHash) throw new Error("חסר אימייל או סיסמה");
+  var existing = sheetToObjects_(SHEETS.USERS).find(function (u) {
+    return String(u.email).toLowerCase() === email;
+  });
+  if (existing) throw new Error("אימייל כבר קיים");
+  var userId = uuid_();
+  appendRow_(SHEETS.USERS, {
+    userId: userId,
+    email: email,
+    passwordHash: passwordHash,
+    plan: "free",
+    createdAt: nowIso_(),
+  });
+  return { userId: userId, email: email, plan: "free" };
+}
+
+function getUserByEmail_(body) {
+  requireInternal_(body);
+  var email = String(body.email || "").trim().toLowerCase();
+  var row = sheetToObjects_(SHEETS.USERS).find(function (u) {
+    return String(u.email).toLowerCase() === email;
+  });
+  if (!row) return { user: null };
+  return {
+    user: {
+      userId: String(row.userId),
+      email: String(row.email),
+      passwordHash: String(row.passwordHash),
+      plan: String(row.plan || "free"),
+    },
+  };
+}
+
+function slugify_(text) {
+  var base = String(text || "event")
+    .trim()
+    .toLowerCase()
+    .replace(/[^\w\u0590-\u05FF]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  return (base || "event").substring(0, 36);
+}
+
+function uniqueSlug_(base) {
+  var slug = slugify_(base);
+  var existing = sheetToObjects_(SHEETS.EVENTS).map(function (e) {
+    return String(e.slug);
+  });
+  if (existing.indexOf(slug) === -1) return slug;
+  var i = 2;
+  while (existing.indexOf(slug + "-" + i) !== -1) i++;
+  return slug + "-" + i;
+}
+
+function ownerListEvents_(body) {
+  var tenantId = requireTenant_(body);
+  var events = sheetToObjects_(SHEETS.EVENTS)
+    .filter(function (e) {
+      return String(e.tenantId) === String(tenantId);
+    })
+    .map(mapEventRow_);
+  return { events: events };
+}
+
+function ownerCreateEvent_(body) {
+  var tenantId = requireTenant_(body);
+  var name = String(body.name || "").trim();
+  if (!name) throw new Error("חסר שם אירוע");
+  var eventId = uuid_();
+  var slug = body.slug ? slugify_(body.slug) : uniqueSlug_(name);
+  if (getEventRowBySlug_(slug)) slug = uniqueSlug_(slug);
+  var publicToken = token_();
+  var folderId = ensureEventPhotosFolder_(eventId);
+  appendRow_(SHEETS.EVENTS, {
+    eventId: eventId,
+    tenantId: tenantId,
+    slug: slug,
+    name: name,
+    type: String(body.type || "other"),
+    date: String(body.date || ""),
+    venue: String(body.venue || ""),
+    tagline: String(body.tagline || ""),
+    themeJson: body.theme
+      ? JSON.stringify(body.theme)
+      : JSON.stringify({
+          primary: "#1e3a5f",
+          accent: "#c9a227",
+          background: "#faf8f5",
+        }),
+    driveFolderId: folderId,
+    publicToken: publicToken,
+    active: "TRUE",
+    createdAt: nowIso_(),
+  });
+  logActivity_(eventId, "", "event_created", { name: name, tenantId: tenantId });
+  return { success: true, eventId: eventId, slug: slug, publicToken: publicToken };
+}
+
+function computeStats_(eventId) {
+  var guests = listGuestsByEventId_(eventId);
+  var rsvps = sheetToObjects_(SHEETS.RSVPS).filter(function (r) {
+    return String(r.eventId) === String(eventId);
+  });
+  var confirmed = 0;
+  var declined = 0;
+  var guestsAttending = 0;
+  rsvps.forEach(function (r) {
+    if (String(r.attending) === "yes") {
+      confirmed++;
+      guestsAttending += parseInt(r.guestsCount, 10) || 0;
+    } else if (String(r.attending) === "no") {
+      declined++;
+    }
+  });
+  var blessingsCount = sheetToObjects_(SHEETS.BLESSINGS).filter(function (b) {
+    return String(b.eventId) === String(eventId);
+  }).length;
+  var photosCount = sheetToObjects_(SHEETS.PHOTOS).filter(function (p) {
+    return String(p.eventId) === String(eventId);
+  }).length;
+  return {
+    guestsTotal: guests.length,
+    confirmed: confirmed,
+    declined: declined,
+    pending: Math.max(0, guests.length - rsvps.length),
+    guestsAttending: guestsAttending,
+    blessingsCount: blessingsCount,
+    photosCount: photosCount,
+  };
+}
+
+function ownerGetStats_(body) {
+  var tenantId = requireTenant_(body);
+  var slug = String(body.slug || "");
+  var event = requireEventOwnerBySlug_(slug, tenantId);
+  return { stats: computeStats_(event.eventId) };
+}
+
+function ownerListGuests_(body) {
+  var tenantId = requireTenant_(body);
+  var slug = String(body.slug || "");
+  requireEventOwnerBySlug_(slug, tenantId);
+  return { guests: listGuestsEngagement_(slug) };
+}
+
+function ownerListBlessings_(body) {
+  var tenantId = requireTenant_(body);
+  var slug = String(body.slug || "");
+  requireEventOwnerBySlug_(slug, tenantId);
+  return { blessings: listBlessings_(slug) };
+}
+
+function ownerListPhotos_(body) {
+  var tenantId = requireTenant_(body);
+  var slug = String(body.slug || "");
+  requireEventOwnerBySlug_(slug, tenantId);
+  return { photos: listPhotos_(slug) };
+}
+
+function ownerListGuestsEngagement_(body) {
+  return ownerListGuests_(body);
+}
+
+function ownerListActivity_(body) {
+  var tenantId = requireTenant_(body);
+  var slug = String(body.slug || "");
+  requireEventOwnerBySlug_(slug, tenantId);
+  return { activity: listActivity_(slug) };
+}
+
+function ownerGetRsvps_(body) {
+  var tenantId = requireTenant_(body);
+  var slug = String(body.slug || "");
+  requireEventOwnerBySlug_(slug, tenantId);
+  return { rsvps: listRsvps_(slug) };
+}
+
+function ownerCreateGuest_(body) {
+  var tenantId = requireTenant_(body);
+  var slug = String(body.slug || "");
+  requireEventOwnerBySlug_(slug, tenantId);
+  return createGuest_(body);
+}
+
+function ownerGenerateMemoryBook_(body) {
+  var tenantId = requireTenant_(body);
+  var slug = String(body.slug || "");
+  requireEventOwnerBySlug_(slug, tenantId);
+  return generateMemoryBook_(slug);
+}
+
+function ownerGetMemoryBook_(body) {
+  var tenantId = requireTenant_(body);
+  var slug = String(body.slug || "");
+  requireEventOwnerBySlug_(slug, tenantId);
+  return getMemoryBook_(slug);
+}
+
 function installMavashEvents_() {
   const props = PropertiesService.getScriptProperties();
   var ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -1264,6 +1530,12 @@ function installMavashEvents_() {
   if (!props.getProperty("SITE_BASE_URL")) {
     props.setProperty("SITE_BASE_URL", "https://mavash-events.vercel.app");
   }
+  if (!props.getProperty("INTERNAL_API_SECRET")) {
+    props.setProperty(
+      "INTERNAL_API_SECRET",
+      Utilities.getUuid().replace(/-/g, "") + Utilities.getUuid().replace(/-/g, "")
+    );
+  }
   setupWorkbook_();
   installReminderTriggers_();
   const demo = sheetToObjects_(SHEETS.EVENTS).find(function (e) {
@@ -1272,6 +1544,7 @@ function installMavashEvents_() {
   return {
     spreadsheetId: ss.getId(),
     adminAccessKey: props.getProperty("ADMIN_ACCESS_KEY"),
+    internalApiSecret: props.getProperty("INTERNAL_API_SECRET"),
     publicToken: demo ? String(demo.publicToken || "") : "",
     slug: "noam-bar-mitzvah",
     eventId: demo ? String(demo.eventId || "") : "",

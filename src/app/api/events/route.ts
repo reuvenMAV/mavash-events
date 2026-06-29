@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+import { getSession } from "@/lib/auth/session";
+import { internalGasPayload } from "@/lib/auth/internal";
 import { getEventsBackend } from "@/lib/backend";
 import {
   RATE_LIMITS,
@@ -33,6 +35,21 @@ const ADMIN_ACTIONS = new Set([
   "createGuest",
   "generateMemoryBook",
   "getMemoryBook",
+]);
+
+const OWNER_ACTIONS = new Set([
+  "ownerListEvents",
+  "ownerCreateEvent",
+  "ownerGetStats",
+  "ownerListGuests",
+  "ownerListBlessings",
+  "ownerListPhotos",
+  "ownerListGuestsEngagement",
+  "ownerListActivity",
+  "ownerCreateGuest",
+  "ownerGenerateMemoryBook",
+  "ownerGetMemoryBook",
+  "ownerGetRsvps",
 ]);
 
 type Action = keyof typeof RATE_LIMITS | string;
@@ -70,6 +87,10 @@ function guestCtx(body: Record<string, unknown>) {
   };
 }
 
+function forbidden(message: string) {
+  return NextResponse.json({ error: message }, { status: 403 });
+}
+
 export async function POST(request: Request) {
   try {
     const body = (await request.json()) as Record<string, unknown>;
@@ -87,10 +108,73 @@ export async function POST(request: Request) {
     const guestId = String(body.guestId || "");
     const eventId = String(body.eventId || "");
 
-    if (ADMIN_ACTIONS.has(action)) {
-      if (!adminKey) {
-        return NextResponse.json({ error: "אין הרשאה" }, { status: 403 });
+    if (OWNER_ACTIONS.has(action)) {
+      const session = await getSession();
+      if (!session) {
+        return NextResponse.json({ error: "נדרשת התחברות" }, { status: 401 });
       }
+      const owner = internalGasPayload(session.userId);
+      try {
+        switch (action) {
+          case "ownerListEvents":
+            return NextResponse.json(await backend.ownerListEvents(owner));
+          case "ownerCreateEvent":
+            return NextResponse.json(
+              await backend.ownerCreateEvent(
+                {
+                  name: String(body.name || ""),
+                  slug: typeof body.slug === "string" ? body.slug : undefined,
+                  type: typeof body.type === "string" ? body.type : undefined,
+                  date: typeof body.date === "string" ? body.date : undefined,
+                  venue: typeof body.venue === "string" ? body.venue : undefined,
+                  tagline: typeof body.tagline === "string" ? body.tagline : undefined,
+                },
+                owner
+              )
+            );
+          case "ownerGetStats":
+            return NextResponse.json(await backend.ownerGetStats(slug, owner));
+          case "ownerListGuests":
+          case "ownerListGuestsEngagement":
+            return NextResponse.json(await backend.ownerListGuestsEngagement(slug, owner));
+          case "ownerListBlessings":
+            return NextResponse.json(await backend.ownerListBlessings(slug, owner));
+          case "ownerListPhotos":
+            return NextResponse.json(await backend.ownerListPhotos(slug, owner));
+          case "ownerListActivity":
+            return NextResponse.json(await backend.ownerListActivity(slug, owner));
+          case "ownerGetRsvps":
+            return NextResponse.json(await backend.ownerGetRsvps(slug, owner));
+          case "ownerCreateGuest":
+            return NextResponse.json(
+              await backend.ownerCreateGuest(
+                slug,
+                String(body.name || ""),
+                owner,
+                {
+                  phone: typeof body.phone === "string" ? body.phone : undefined,
+                  email: typeof body.email === "string" ? body.email : undefined,
+                }
+              )
+            );
+          case "ownerGenerateMemoryBook":
+            return NextResponse.json(await backend.ownerGenerateMemoryBook(slug, owner));
+          case "ownerGetMemoryBook":
+            return NextResponse.json(await backend.ownerGetMemoryBook(slug, owner));
+          default:
+            return NextResponse.json({ error: `Unknown action: ${action}` }, { status: 400 });
+        }
+      } catch (err) {
+        const message = err instanceof Error ? err.message : "שגיאה";
+        if (message.includes("אין הרשאה") || message.includes("לא נמצא")) {
+          return forbidden(message);
+        }
+        throw err;
+      }
+    }
+
+    if (ADMIN_ACTIONS.has(action)) {
+      if (!adminKey) return forbidden("אין הרשאה");
       const admin = { adminKey };
       switch (action) {
         case "adminPing":
@@ -111,15 +195,10 @@ export async function POST(request: Request) {
           return NextResponse.json(await backend.listReminders(slug, admin));
         case "createGuest":
           return NextResponse.json(
-            await backend.createGuest(
-              slug,
-              String(body.name || ""),
-              admin,
-              {
-                phone: typeof body.phone === "string" ? body.phone : undefined,
-                email: typeof body.email === "string" ? body.email : undefined,
-              }
-            )
+            await backend.createGuest(slug, String(body.name || ""), admin, {
+              phone: typeof body.phone === "string" ? body.phone : undefined,
+              email: typeof body.email === "string" ? body.email : undefined,
+            })
           );
         case "generateMemoryBook":
           return NextResponse.json(await backend.generateMemoryBook(slug, admin));
@@ -154,9 +233,7 @@ export async function POST(request: Request) {
             name: String(body.name || ""),
             phone: typeof body.phone === "string" ? body.phone : undefined,
             attending:
-              body.attending === "yes" || body.attending === "no"
-                ? body.attending
-                : "yes",
+              body.attending === "yes" || body.attending === "no" ? body.attending : "yes",
             guestsCount: Number(body.guestsCount) || 0,
             notes: typeof body.notes === "string" ? body.notes : undefined,
           };
@@ -164,12 +241,7 @@ export async function POST(request: Request) {
         }
         case "blessing":
           return NextResponse.json(
-            await backend.submitBlessing(
-              slug,
-              guestId,
-              String(body.message || ""),
-              ctx
-            )
+            await backend.submitBlessing(slug, guestId, String(body.message || ""), ctx)
           );
         case "uploadPhoto": {
           const files =
@@ -195,9 +267,7 @@ export async function POST(request: Request) {
             name: String(body.name || ""),
             phone: typeof body.phone === "string" ? body.phone : undefined,
             attending:
-              body.attending === "yes" || body.attending === "no"
-                ? body.attending
-                : "yes",
+              body.attending === "yes" || body.attending === "no" ? body.attending : "yes",
             guestsCount: Number(body.guestsCount) || 0,
             notes: typeof body.notes === "string" ? body.notes : undefined,
           };
