@@ -1,30 +1,38 @@
 import { NextResponse } from "next/server";
 import { getEventsBackend } from "@/lib/backend";
-import { getSession } from "@/lib/auth/session";
-import { emitHermesEvent } from "@/lib/integrations/hermes";
 import {
   RATE_LIMITS,
   checkRateLimit,
   clientIp,
   rateLimitKey,
 } from "@/lib/rate-limit";
-import type { BlessingPayload, RsvpPayload } from "@/types/events";
+import type { RsvpPayload } from "@/types/events";
 
-const OWNER_ACTIONS = new Set([
-  "ownerListEvents",
-  "ownerCreateEvent",
-  "ownerGetStats",
-  "ownerListGuests",
-  "ownerListBlessings",
-  "ownerListPhotos",
+const GUEST_ACTIONS = new Set([
+  "getEventById",
+  "getGuest",
+  "trackOpen",
+  "markComplete",
+  "rsvp",
+  "blessing",
+  "uploadPhoto",
 ]);
 
-const PUBLIC_ACTIONS = new Set([
-  "getEvent",
-  "submitRsvp",
-  "addBlessing",
-  "uploadPhotos",
-  "listPhotos",
+const TOKEN_ACTIONS = new Set(["getEvent", "rsvp", "blessing", "uploadPhoto"]);
+
+const ADMIN_ACTIONS = new Set([
+  "adminPing",
+  "setupSheets",
+  "setupReminders",
+  "getRsvps",
+  "listBlessings",
+  "photos",
+  "listGuestsEngagement",
+  "listActivity",
+  "listReminders",
+  "createGuest",
+  "generateMemoryBook",
+  "getMemoryBook",
 ]);
 
 type Action = keyof typeof RATE_LIMITS | string;
@@ -32,23 +40,34 @@ type Action = keyof typeof RATE_LIMITS | string;
 function rateLimitResponse(retryAfterSec: number) {
   return NextResponse.json(
     { error: "יותר מדי בקשות — נסו שוב בעוד כמה דקות" },
-    {
-      status: 429,
-      headers: { "Retry-After": String(retryAfterSec) },
-    }
+    { status: 429, headers: { "Retry-After": String(retryAfterSec) } }
   );
 }
 
-function applyRateLimit(action: Action, ip: string, accessToken?: string) {
-  const rule = RATE_LIMITS[action as keyof typeof RATE_LIMITS];
+function applyRateLimit(action: Action, ip: string, id?: string) {
+  const aliases: Record<string, keyof typeof RATE_LIMITS> = {
+    rsvp: "submitRsvp",
+    blessing: "addBlessing",
+    uploadPhoto: "uploadPhotos",
+    trackOpen: "getEvent",
+  };
+  const key = aliases[action] || (action as keyof typeof RATE_LIMITS);
+  const rule = RATE_LIMITS[key];
   if (!rule) return null;
   const result = checkRateLimit({
-    key: rateLimitKey(ip, action, accessToken),
+    key: rateLimitKey(ip, key, id),
     limit: rule.limit,
     windowMs: rule.windowMs,
   });
   if (!result.ok) return rateLimitResponse(result.retryAfterSec);
   return null;
+}
+
+function guestCtx(body: Record<string, unknown>) {
+  return {
+    guestId: String(body.guestId || ""),
+    eventId: String(body.eventId || ""),
+  };
 }
 
 export async function POST(request: Request) {
@@ -63,122 +82,153 @@ export async function POST(request: Request) {
     const accessToken =
       typeof body.accessToken === "string" ? body.accessToken : undefined;
     const adminKey = request.headers.get("x-admin-key") || undefined;
-
-    const limited = applyRateLimit(action, ip, accessToken);
-    if (limited) return limited;
-
     const backend = getEventsBackend();
     const slug = String(body.slug || "");
+    const guestId = String(body.guestId || "");
+    const eventId = String(body.eventId || "");
 
-    if (PUBLIC_ACTIONS.has(action) && !adminKey) {
-      if (!accessToken) {
-        return NextResponse.json({ error: "נדרש קוד גישה לאירוע" }, { status: 403 });
+    if (ADMIN_ACTIONS.has(action)) {
+      if (!adminKey) {
+        return NextResponse.json({ error: "אין הרשאה" }, { status: 403 });
       }
-      const access = { accessToken };
+      const admin = { adminKey };
       switch (action) {
-        case "getEvent":
-          return NextResponse.json(await backend.getEvent(slug, access));
-        case "submitRsvp": {
-          const { action: _a, accessToken: _t, ...rsvp } = body;
-          const result = await backend.submitRsvp(rsvp as unknown as RsvpPayload, access);
-          emitHermesEvent("rsvp.submitted", slug, {
-            name: rsvp.name,
-            status: rsvp.status,
-            guestsCount: rsvp.guestsCount,
-            guestId: result.guestId,
-          });
-          return NextResponse.json(result);
-        }
-        case "addBlessing": {
-          const { action: _a, accessToken: _t, ...blessing } = body;
-          const result = await backend.addBlessing(blessing as unknown as BlessingPayload, access);
-          emitHermesEvent("blessing.added", slug, {
-            guestName: blessing.guestName,
-            message: blessing.message,
-            blessingId: result.blessingId,
-          });
-          return NextResponse.json(result);
-        }
-        case "uploadPhotos": {
-          const files = (body.files as { name: string; mimeType: string; dataBase64: string }[]) || [];
-          const result = await backend.uploadPhotos(
-            slug,
-            files,
-            access,
-            typeof body.uploadedBy === "string" ? body.uploadedBy : undefined
+        case "adminPing":
+          return NextResponse.json(await backend.adminPing(admin));
+        case "setupReminders":
+          return NextResponse.json(await backend.setupReminders(admin));
+        case "getRsvps":
+          return NextResponse.json(await backend.getRsvps(slug, admin));
+        case "listBlessings":
+          return NextResponse.json(await backend.listBlessings(slug, admin));
+        case "photos":
+          return NextResponse.json(await backend.listPhotos(slug, admin));
+        case "listGuestsEngagement":
+          return NextResponse.json(await backend.listGuestsEngagement(slug, admin));
+        case "listActivity":
+          return NextResponse.json(await backend.listActivity(slug, admin));
+        case "listReminders":
+          return NextResponse.json(await backend.listReminders(slug, admin));
+        case "createGuest":
+          return NextResponse.json(
+            await backend.createGuest(
+              slug,
+              String(body.name || ""),
+              admin,
+              {
+                phone: typeof body.phone === "string" ? body.phone : undefined,
+                email: typeof body.email === "string" ? body.email : undefined,
+              }
+            )
           );
-          emitHermesEvent("photos.uploaded", slug, {
-            count: files.length,
-            uploadedBy: body.uploadedBy || "",
-            photoIds: result.photoIds,
-          });
-          return NextResponse.json(result);
-        }
-        case "listPhotos":
-          return NextResponse.json(await backend.listPhotos(slug, access));
-        default:
-          break;
-      }
-    }
-
-    if (OWNER_ACTIONS.has(action)) {
-      const session = await getSession();
-      if (!session) {
-        return NextResponse.json({ error: "נדרשת התחברות" }, { status: 401 });
-      }
-      const owner = { tenantId: session.userId };
-      switch (action) {
-        case "ownerListEvents":
-          return NextResponse.json(await backend.ownerListEvents(owner));
-        case "ownerCreateEvent": {
-          const { action: _a, ...payload } = body;
-          const result = await backend.ownerCreateEvent(
-            payload as Parameters<typeof backend.ownerCreateEvent>[0],
-            owner
-          );
-          emitHermesEvent("event.created", String(result.slug), {
-            eventId: result.eventId,
-            tenantId: session.userId,
-          });
-          return NextResponse.json(result);
-        }
-        case "ownerGetStats":
-          return NextResponse.json(await backend.ownerGetStats(slug, owner));
-        case "ownerListGuests":
-          return NextResponse.json(await backend.ownerListGuests(slug, owner));
-        case "ownerListBlessings":
-          return NextResponse.json(await backend.ownerListBlessings(slug, owner));
-        case "ownerListPhotos":
-          return NextResponse.json(await backend.ownerListPhotos(slug, owner));
+        case "generateMemoryBook":
+          return NextResponse.json(await backend.generateMemoryBook(slug, admin));
+        case "getMemoryBook":
+          return NextResponse.json(await backend.getMemoryBook(slug, admin));
         default:
           return NextResponse.json({ error: `Unknown action: ${action}` }, { status: 400 });
       }
     }
 
-    if (!adminKey) {
-      return NextResponse.json({ error: "אין הרשאה" }, { status: 403 });
+    const hasGuest = Boolean(guestId && eventId);
+    const hasToken = Boolean(accessToken);
+
+    if (GUEST_ACTIONS.has(action) && hasGuest) {
+      const limited = applyRateLimit(action, ip, guestId);
+      if (limited) return limited;
+      const ctx = guestCtx(body);
+
+      switch (action) {
+        case "getEventById":
+        case "getGuest":
+          return NextResponse.json(await backend.getEventForGuest(eventId, guestId));
+        case "trackOpen":
+          return NextResponse.json(await backend.trackOpen(ctx));
+        case "markComplete":
+          return NextResponse.json(await backend.markComplete(ctx));
+        case "rsvp": {
+          const rsvp: RsvpPayload & { guestId: string; eventId: string } = {
+            slug,
+            guestId,
+            eventId,
+            name: String(body.name || ""),
+            phone: typeof body.phone === "string" ? body.phone : undefined,
+            attending:
+              body.attending === "yes" || body.attending === "no"
+                ? body.attending
+                : "yes",
+            guestsCount: Number(body.guestsCount) || 0,
+            notes: typeof body.notes === "string" ? body.notes : undefined,
+          };
+          return NextResponse.json(await backend.submitRsvp(rsvp));
+        }
+        case "blessing":
+          return NextResponse.json(
+            await backend.submitBlessing(
+              slug,
+              guestId,
+              String(body.message || ""),
+              ctx
+            )
+          );
+        case "uploadPhoto": {
+          const files =
+            (body.files as { name: string; mimeType: string; dataBase64: string }[]) || [];
+          return NextResponse.json(await backend.uploadPhotos(guestId, files, ctx));
+        }
+        default:
+          break;
+      }
     }
 
-    const admin = { adminKey };
-    switch (action) {
-      case "adminPing":
-        return NextResponse.json(await backend.adminPing(admin));
-      case "listEvents":
-        return NextResponse.json(await backend.listEvents(admin));
-      case "getStats":
-        return NextResponse.json(await backend.getStats(slug, admin));
-      case "listGuests":
-        return NextResponse.json(await backend.listGuests(slug, admin));
-      case "listBlessings":
-        return NextResponse.json(await backend.listBlessings(slug, admin));
-      case "listPhotos":
-        return NextResponse.json(await backend.listPhotosAdmin(slug, admin));
-      default:
-        return NextResponse.json({ error: `Unknown action: ${action}` }, { status: 400 });
+    if (TOKEN_ACTIONS.has(action) && hasToken && !adminKey) {
+      const limited = applyRateLimit(action, ip, accessToken);
+      if (limited) return limited;
+      const access = { accessToken: accessToken! };
+
+      switch (action) {
+        case "getEvent":
+          return NextResponse.json(await backend.getEvent(slug, access));
+        case "rsvp": {
+          const rsvp: RsvpPayload = {
+            slug,
+            name: String(body.name || ""),
+            phone: typeof body.phone === "string" ? body.phone : undefined,
+            attending:
+              body.attending === "yes" || body.attending === "no"
+                ? body.attending
+                : "yes",
+            guestsCount: Number(body.guestsCount) || 0,
+            notes: typeof body.notes === "string" ? body.notes : undefined,
+          };
+          return NextResponse.json(await backend.submitRsvp(rsvp, access));
+        }
+        case "blessing":
+          return NextResponse.json(
+            await backend.submitBlessing(
+              slug,
+              guestId,
+              String(body.message || ""),
+              { guestId, eventId }
+            )
+          );
+        case "uploadPhoto": {
+          const files =
+            (body.files as { name: string; mimeType: string; dataBase64: string }[]) || [];
+          return NextResponse.json(
+            await backend.uploadPhotos(guestId, files, { guestId, eventId })
+          );
+        }
+        default:
+          break;
+      }
     }
+
+    return NextResponse.json({ error: `Unknown or unauthorized action: ${action}` }, { status: 400 });
   } catch (err) {
     const message = err instanceof Error ? err.message : "שגיאה לא ידועה";
-    const status = message.includes("אין הרשאה") || message.includes("קוד גישה") ? 403 : 500;
+    const status =
+      message.includes("אין הרשאה") || message.includes("קוד גישה") ? 403 : 500;
     return NextResponse.json({ error: message }, { status });
   }
 }

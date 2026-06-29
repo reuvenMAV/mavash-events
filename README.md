@@ -1,30 +1,67 @@
-# MAVASH Events
+# MAVASH Events — Phase 2
 
-מערכת אירועים מודולרית — RSVP, ברכות, תמונות, דשבורד.  
-**Next.js (Vercel) → `/api/events` → Apps Script → Sheets + Drive**
+פלטפורמת מעורבות לאירוע: זהות אורח, מעקב פתיחות, תזכורות, ספר זיכרונות, פיד חי.  
+**Next.js → `/api/events` → Google Apps Script → Sheets + Drive + Docs**
 
-**GitHub:** https://github.com/reuvenMAV/mavash-events  
 **Live:** https://mavash-events.vercel.app
 
-## מודולים
+## זרימת אורח (QR / קישור אישי)
 
-| מודול | סטטוס |
-|-------|--------|
-| RSVP | ✅ |
-| ספר ברכות | ✅ |
-| העלאת תמונות (דחיסה בקליינט, עד 50) | ✅ |
-| Dashboard (4 מסכים) | ✅ |
-| אירועים מרובים (slug) | ✅ |
-| טוקן גישה לאורח (`?t=`) | ✅ |
-| Abstraction layer (מעבר עתידי ל-DB) | ✅ |
-| Rate limiting בסיסי | ✅ |
-| HERMES / n8n webhooks | ✅ (emit + workflow template) |
-| Sheets hybrid / תמונות AI | 📋 תיעוד + hooks |
-| תזכורות WhatsApp / PDF ברכות | 🔜 n8n (שלב 6) |
+```
+/event/{eventId}?guest={guestId}
+```
 
-## התחלה
+1. פתיחת קישור → `trackOpen`
+2. RSVP (שם ממולא מראש)
+3. תודה → ברכה (אופציונלי) → תמונות → סיום
 
-ראה [docs/SETUP.md](docs/SETUP.md), [docs/BACKEND.md](docs/BACKEND.md), [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md)
+זרימה רציפה ללא תפריט ניווט.
+
+## ניהול (`/admin`)
+
+| טאב | תוכן |
+|-----|------|
+| אורחים | סטטוס מעורבות, QR, יצירת אורח חדש |
+| פיד חי | ActivityLog בזמן אמת |
+| RSVP / ברכות / תמונות | טבלאות |
+| ספר זיכרונות | Google Doc + PDF |
+
+## Sheets (מקור האמת)
+
+| גיליון | תפקיד |
+|--------|--------|
+| Guests | זהות + inviteUrl + qrUrl + openCount |
+| RSVPs | אישורי הגעה |
+| Blessings | ברכות |
+| Photos | מטא-דאטה תמונות |
+| ActivityLog | ציר זמן |
+| Reminders | תזכורות שנשלחו |
+| MemoryBooks | קישורי Doc/PDF |
+
+## GAS Endpoints
+
+| Action | תיאור |
+|--------|--------|
+| `createGuest` | admin — אורח + QR |
+| `trackOpen` | מעקב פתיחה |
+| `rsvp` | אישור (אורח קיים או חדש) |
+| `blessing` / `uploadPhoto` | מעורבות |
+| `listGuestsEngagement` | admin — סטטוס אורחים |
+| `listActivity` | admin — פיד |
+| `generateMemoryBook` | ספר זיכרונות |
+| `setupReminders` | הפעלת triggers יומיים |
+
+## Script Properties
+
+```
+SPREADSHEET_ID
+ADMIN_ACCESS_KEY
+EVENTS_ROOT_FOLDER_ID
+SITE_BASE_URL=https://mavash-events.vercel.app
+WHATSAPP_WEBHOOK_URL  (אופציונלי)
+```
+
+## התקנה
 
 ```bash
 npm install
@@ -32,5 +69,10 @@ cp .env.local.example .env.local
 npm run dev
 ```
 
-- אורח: `/e/noam-bar-mitzvah?t=YOUR_PUBLIC_TOKEN`
-- ניהול: `/dashboard`
+1. הדבק `apps-script/Code.gs` ב-Apps Script
+2. הרץ `installMavashEvents()` — יוצר גיליונות + triggers
+3. פרוס Web App + עדכן `GAS_WEB_APP_URL` ב-Vercel
+
+- אורח (QR): `/event/{eventId}?guest={guestId}`
+- אורח (legacy): `/e/noam-bar-mitzvah?t=TOKEN`
+- ניהול: `/admin`

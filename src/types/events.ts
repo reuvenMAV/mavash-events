@@ -73,7 +73,7 @@ export interface RsvpPayload {
   slug: string;
   name: string;
   phone?: string;
-  status: "yes" | "no";
+  attending: "yes" | "no";
   guestsCount: number;
   notes?: string;
 }

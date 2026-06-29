@@ -1,23 +1,28 @@
-import Link from "next/link";
 export const dynamic = "force-dynamic";
 
+import { EventFlow } from "@/components/EventFlow";
 import { EventShell } from "@/components/EventShell";
 import { InvalidAccessToken, MissingAccessToken } from "@/components/EventAccessMessage";
 import { loadEventForGuest } from "@/lib/load-event";
 
-function tokenQuery(accessToken: string) {
-  return `?t=${encodeURIComponent(accessToken)}`;
-}
-
-export default async function EventHomePage({
+export default async function EventPage({
   params,
   searchParams,
 }: {
   params: Promise<{ slug: string }>;
-  searchParams: Promise<{ t?: string }>;
+  searchParams: Promise<{ t?: string; guest?: string }>;
 }) {
   const { slug } = await params;
-  const { t } = await searchParams;
+  const { t, guest } = await searchParams;
+
+  if (guest) {
+    const { redirect } = await import("next/navigation");
+    const loaded = await loadEventForGuest(slug, t);
+    if (loaded.ok) {
+      redirect(`/event/${loaded.event.eventId}?guest=${encodeURIComponent(guest)}`);
+    }
+  }
+
   const loaded = await loadEventForGuest(slug, t);
 
   if (!loaded.ok) {
@@ -26,43 +31,22 @@ export default async function EventHomePage({
   }
 
   const { event } = loaded;
-  const q = tokenQuery(t!);
 
   return (
-    <EventShell event={event} accessToken={t!}>
-      <div className="space-y-4">
-        <p className="text-center text-charcoal/70">בחרו מה תרצו לעשות:</p>
-        <div className="grid gap-3">
-          <ActionCard href={`/e/${slug}/rsvp${q}`} emoji="✅" title="אישור הגעה" desc="ספרו לנו אם תגיעו וכמה אורחים" />
-          <ActionCard href={`/e/${slug}/blessings${q}`} emoji="💌" title="ברכה" desc="כתבו מילים חמות לספר הברכות" />
-          <ActionCard href={`/e/${slug}/photos${q}`} emoji="📸" title="תמונות" desc="העלו תמונות מהאירוע" />
-        </div>
-      </div>
+    <EventShell event={event}>
+      <EventFlow
+        event={{
+          eventId: event.eventId,
+          slug: event.slug,
+          name: event.name,
+          type: event.type,
+          date: event.date,
+          venue: event.venue,
+          tagline: event.tagline || "",
+          theme: event.theme,
+        }}
+        ctx={{ mode: "token", slug, accessToken: t! }}
+      />
     </EventShell>
-  );
-}
-
-function ActionCard({
-  href,
-  emoji,
-  title,
-  desc,
-}: {
-  href: string;
-  emoji: string;
-  title: string;
-  desc: string;
-}) {
-  return (
-    <Link
-      href={href}
-      className="flex items-center gap-4 rounded-2xl bg-white p-5 shadow-sm transition hover:shadow-md"
-    >
-      <span className="text-3xl">{emoji}</span>
-      <div>
-        <p className="font-medium">{title}</p>
-        <p className="text-sm text-charcoal/60">{desc}</p>
-      </div>
-    </Link>
   );
 }

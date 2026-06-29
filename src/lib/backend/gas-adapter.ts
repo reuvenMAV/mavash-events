@@ -1,34 +1,21 @@
-/**
- * Google Apps Script backend — MVP implementation.
- *
- * QUOTA: 6 min execution / daily limits. Do not call GAS from components;
- * only this adapter talks to gas-server.ts.
- *
- * MIGRATION: Replace with firestore-adapter.ts implementing EventsBackend.
- */
 import { gasRequest } from "@/lib/gas-server";
-import { internalGasPayload } from "@/lib/auth/internal";
 import type {
-  AccessContext,
   AdminContext,
-  CreateEventPayload,
+  AccessContext,
   EventsBackend,
-  OwnerContext,
+  GuestContext,
   PhotoFilePayload,
 } from "./types";
+import type { EventRecord, RsvpPayload } from "@/types/events";
 import type {
-  BlessingPayload,
-  BlessingRecord,
-  EventRecord,
-  EventStats,
-  GuestRecord,
-  PhotoRecord,
-  RsvpPayload,
-} from "@/types/events";
-
-function withToken<T extends object>(payload: T, access: AccessContext) {
-  return { ...payload, accessToken: access.accessToken };
-}
+  ActivityRow,
+  BlessingRow,
+  GuestEngagementRow,
+  MemoryBook,
+  PhotoRow,
+  ReminderRow,
+  RsvpRow,
+} from "@/types/mvp";
 
 export class GasEventsBackend implements EventsBackend {
   async getEvent(slug: string, access: AccessContext) {
@@ -38,99 +25,108 @@ export class GasEventsBackend implements EventsBackend {
     });
   }
 
-  async submitRsvp(payload: RsvpPayload, access: AccessContext) {
-    return gasRequest<{ success: boolean; guestId: string }>(
-      "submitRsvp",
-      withToken(payload, access)
-    );
+  async getEventForGuest(eventId: string, guestId: string) {
+    return gasRequest<{
+      event: EventRecord;
+      guest: { guestId: string; name: string; phone: string; engagement: string };
+      hasRsvp: boolean;
+      rsvp: { attending: string; guestsCount: number } | null;
+    }>("getEventById", { eventId, guestId });
   }
 
-  async addBlessing(payload: BlessingPayload, access: AccessContext) {
-    return gasRequest<{ success: boolean; blessingId: string }>(
-      "addBlessing",
-      withToken(payload, access)
-    );
+  async trackOpen(guest: GuestContext) {
+    return gasRequest<{ success: boolean; openCount: number }>("trackOpen", guest);
   }
 
-  async uploadPhotos(
-    slug: string,
-    files: PhotoFilePayload[],
-    access: AccessContext,
-    uploadedBy?: string
+  async submitRsvp(
+    payload: RsvpPayload & { guestId?: string; eventId?: string },
+    access?: AccessContext
   ) {
-    return gasRequest<{ photoIds: string[] }>(
-      "uploadPhotos",
-      withToken({ slug, files, uploadedBy }, access)
-    );
+    return gasRequest<{
+      success: boolean;
+      guestId: string;
+      rsvpId: string;
+      attending: string;
+    }>("rsvp", {
+      ...payload,
+      ...(access ? { accessToken: access.accessToken } : {}),
+    });
   }
 
-  async listPhotos(slug: string, access: AccessContext) {
-    return gasRequest<{ photos: PhotoRecord[] }>("listPhotos", {
-      slug,
-      accessToken: access.accessToken,
+  async submitBlessing(_slug: string, guestId: string, message: string, ctx: GuestContext) {
+    return gasRequest<{ success: boolean; blessingId: string }>("blessing", {
+      guestId,
+      message,
+      eventId: ctx.eventId,
     });
+  }
+
+  async uploadPhotos(guestId: string, files: PhotoFilePayload[], ctx: GuestContext) {
+    return gasRequest<{ photos: { photoId: string; driveUrl: string }[] }>("uploadPhoto", {
+      guestId,
+      files,
+      eventId: ctx.eventId,
+    });
+  }
+
+  async markComplete(ctx: GuestContext) {
+    return gasRequest<{ success: boolean }>("markComplete", ctx);
   }
 
   async adminPing(ctx: AdminContext) {
     return gasRequest<{ ok: boolean }>("adminPing", {}, ctx.adminKey);
   }
 
-  async listEvents(ctx: AdminContext) {
-    return gasRequest<{ events: EventRecord[] }>("listEvents", {}, ctx.adminKey);
-  }
-
-  async getStats(slug: string, ctx: AdminContext) {
-    return gasRequest<{ stats: EventStats }>("getStats", { slug }, ctx.adminKey);
-  }
-
-  async listGuests(slug: string, ctx: AdminContext) {
-    return gasRequest<{ guests: GuestRecord[] }>("listGuests", { slug }, ctx.adminKey);
+  async getRsvps(slug: string, ctx: AdminContext) {
+    return gasRequest<{ rsvps: RsvpRow[] }>("getRsvps", { slug }, ctx.adminKey);
   }
 
   async listBlessings(slug: string, ctx: AdminContext) {
-    return gasRequest<{ blessings: BlessingRecord[] }>("listBlessings", { slug }, ctx.adminKey);
+    return gasRequest<{ blessings: BlessingRow[] }>("listBlessings", { slug }, ctx.adminKey);
   }
 
-  async listPhotosAdmin(slug: string, ctx: AdminContext) {
-    return gasRequest<{ photos: PhotoRecord[] }>("listPhotos", { slug }, ctx.adminKey);
+  async listPhotos(slug: string, ctx: AdminContext) {
+    return gasRequest<{ photos: PhotoRow[] }>("photos", { slug }, ctx.adminKey);
   }
 
-  async ownerListEvents(ctx: OwnerContext) {
-    return gasRequest<{ events: EventRecord[] }>("listEvents", internalGasPayload(ctx.tenantId));
-  }
-
-  async ownerCreateEvent(payload: CreateEventPayload, ctx: OwnerContext) {
-    return gasRequest<{ success: boolean; eventId: string; slug: string; publicToken: string }>(
-      "createEvent",
-      { ...payload, ...internalGasPayload(ctx.tenantId) }
+  async listGuestsEngagement(slug: string, ctx: AdminContext) {
+    return gasRequest<{ guests: GuestEngagementRow[] }>(
+      "listGuestsEngagement",
+      { slug },
+      ctx.adminKey
     );
   }
 
-  async ownerGetStats(slug: string, ctx: OwnerContext) {
-    return gasRequest<{ stats: EventStats }>("getStats", {
-      slug,
-      ...internalGasPayload(ctx.tenantId),
-    });
+  async listActivity(slug: string, ctx: AdminContext) {
+    return gasRequest<{ activity: ActivityRow[] }>("listActivity", { slug }, ctx.adminKey);
   }
 
-  async ownerListGuests(slug: string, ctx: OwnerContext) {
-    return gasRequest<{ guests: GuestRecord[] }>("listGuests", {
-      slug,
-      ...internalGasPayload(ctx.tenantId),
-    });
+  async listReminders(slug: string, ctx: AdminContext) {
+    return gasRequest<{ reminders: ReminderRow[] }>("listReminders", { slug }, ctx.adminKey);
   }
 
-  async ownerListBlessings(slug: string, ctx: OwnerContext) {
-    return gasRequest<{ blessings: BlessingRecord[] }>("listBlessings", {
-      slug,
-      ...internalGasPayload(ctx.tenantId),
-    });
+  async createGuest(
+    slug: string,
+    name: string,
+    ctx: AdminContext,
+    opts?: { phone?: string; email?: string }
+  ) {
+    return gasRequest<{ guestId: string; inviteUrl: string; qrUrl: string }>(
+      "createGuest",
+      { slug, name, phone: opts?.phone, email: opts?.email },
+      ctx.adminKey
+    );
   }
 
-  async ownerListPhotos(slug: string, ctx: OwnerContext) {
-    return gasRequest<{ photos: PhotoRecord[] }>("listPhotos", {
-      slug,
-      ...internalGasPayload(ctx.tenantId),
-    });
+  async generateMemoryBook(slug: string, ctx: AdminContext) {
+    return gasRequest<MemoryBook>("generateMemoryBook", { slug }, ctx.adminKey);
+  }
+
+  async getMemoryBook(slug: string, ctx: AdminContext) {
+    return gasRequest<{ memoryBook: MemoryBook | null }>("getMemoryBook", { slug }, ctx.adminKey);
+  }
+
+  async setupReminders(ctx: AdminContext) {
+    return gasRequest<{ success: boolean }>("setupReminders", {}, ctx.adminKey);
   }
 }
