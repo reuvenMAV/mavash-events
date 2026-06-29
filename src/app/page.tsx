@@ -5,6 +5,7 @@ import { hasGasBackend } from "@/lib/gas-server";
 import { EVENT_IMAGES } from "@/lib/event-images";
 
 const DEMO_SLUG = "noam-bar-mitzvah";
+const DEMO_EVENT_NAME = "בר מצווה של אבנר";
 const demoToken = process.env.NEXT_PUBLIC_DEMO_EVENT_TOKEN?.trim();
 
 const EVENT_TYPES = [
@@ -66,7 +67,7 @@ export default function HomePage() {
                   href={demoHref}
                   className="rounded-full border border-white/40 px-8 py-3 text-sm transition hover:bg-white/10"
                 >
-                  דוגמה חיה
+                  דוגמה: {DEMO_EVENT_NAME}
                 </Link>
               ) : null}
             </div>
