@@ -97,13 +97,23 @@ export async function submitBlessing(ctx: FlowContext, message: string, guestId:
   );
 }
 
-export async function markFlowComplete(ctx: FlowContext) {
-  if (ctx.mode !== "guest") return;
-  return post<{ success: boolean }>({
-    action: "markComplete",
-    eventId: ctx.eventId,
-    guestId: ctx.guestId,
-  });
+export async function markFlowComplete(ctx: FlowContext, guestId: string) {
+  if (!guestId) return;
+  if (ctx.mode === "guest") {
+    return post<{ success: boolean }>({
+      action: "markComplete",
+      eventId: ctx.eventId,
+      guestId,
+    });
+  }
+  return post<{ success: boolean }>(
+    {
+      action: "markComplete",
+      slug: ctx.slug,
+      guestId,
+    },
+    { accessToken: ctx.accessToken }
+  );
 }
 
 export async function uploadPhotos(

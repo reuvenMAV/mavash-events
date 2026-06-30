@@ -12,6 +12,7 @@ import {
 import type { EventInfo, FlowContext, GuestSession } from "@/types/mvp";
 import { UPLOAD_LIMITS } from "@/lib/upload-limits";
 import { FLOW_STEP_IMAGE } from "@/lib/event-images";
+import { EventStepNav } from "@/components/EventStepNav";
 import { StepImage } from "@/components/StepImage";
 
 type Step = "rsvp" | "thanks" | "blessing" | "photos" | "done";
@@ -70,9 +71,29 @@ export function EventFlow({
   const inputRef = useRef<HTMLInputElement>(null);
   const [files, setFiles] = useState<File[]>([]);
   const [uploadProgress, setUploadProgress] = useState("");
+  const [navHint, setNavHint] = useState("");
 
   const primary = event.theme?.primary || "#1e3a5f";
   const accent = event.theme?.accent || "#c9a227";
+
+  const activeGuestId =
+    session?.guestId || (ctx.mode === "guest" ? ctx.guestId : "");
+
+  const canUseGuestSteps = Boolean(activeGuestId);
+
+  useEffect(() => {
+    try {
+      const raw = sessionStorage.getItem(sessionKey(ctx));
+      if (!raw) return;
+      const saved = JSON.parse(raw) as GuestSession;
+      if (!saved.guestId) return;
+      setSession(saved);
+      if (saved.name) setName(saved.name);
+      if (saved.attending) setAttending(saved.attending);
+    } catch {
+      /* ignore */
+    }
+  }, [ctx]);
 
   useEffect(() => {
     if (ctx.mode !== "guest" || tracked.current) return;
@@ -82,9 +103,19 @@ export function EventFlow({
 
   useEffect(() => {
     if (step !== "thanks") return;
-    const t = setTimeout(() => setStep("blessing"), 2200);
+    const t = setTimeout(() => setStep("blessing"), 3500);
     return () => clearTimeout(t);
   }, [step]);
+
+  function goToStep(target: "rsvp" | "blessing" | "photos") {
+    setNavHint("");
+    if (target !== "rsvp" && !canUseGuestSteps) {
+      setNavHint("קודם מאשרים הגעה (שלב אישור הגעה)");
+      setStep("rsvp");
+      return;
+    }
+    setStep(target);
+  }
 
   async function onRsvpSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -120,7 +151,11 @@ export function EventFlow({
 
   async function onBlessingSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!session && ctx.mode === "token") return;
+    if (!activeGuestId) {
+      setError("קודם מאשרים הגעה");
+      setStep("rsvp");
+      return;
+    }
     if (!blessing.trim()) return;
     setLoading(true);
     setError("");
@@ -142,11 +177,8 @@ export function EventFlow({
     e.target.value = "";
   }
 
-  const activeGuestId =
-    session?.guestId || (ctx.mode === "guest" ? ctx.guestId : "");
-
   async function finishFlow() {
-    await markFlowComplete(ctx).catch(() => {});
+    await markFlowComplete(ctx, activeGuestId).catch(() => {});
     setStep("done");
   }
 
@@ -175,6 +207,14 @@ export function EventFlow({
 
   return (
     <div className="space-y-4">
+      <EventStepNav
+        step={step}
+        canUseGuestSteps={canUseGuestSteps}
+        accent={accent}
+        onSelect={goToStep}
+      />
+      {navHint && <p className="text-center text-sm text-amber-700">{navHint}</p>}
+
       <div className="flex gap-1 px-1">
         {(["rsvp", "thanks", "blessing", "photos"] as const).map((s, i) => (
           <div
@@ -284,12 +324,12 @@ export function EventFlow({
           <h2 className="font-heading text-2xl">תודה{displayName ? `, ${displayName}` : ""}!</h2>
           <p className="text-charcoal/70">
             {session?.attending === "no"
-              ? "תודה שעדכנתם. נתראה בפעם אחרת."
+              ? "תודה שעדכנתם. אפשר גם לשלוח ברכה או תמונות למשפחה."
               : hasRsvp
                 ? "שמחנו לראות אתכם! המשיכו לברכה ותמונות."
-                : "קיבלנו את אישור ההגעה. נתראה באירוע!"}
+                : "קיבלנו את אישור ההגעה. המשיכו לברכה ותמונות!"}
           </p>
-          <p className="text-xs text-charcoal/40">ממשיכים אוטומטית...</p>
+          <p className="text-xs text-charcoal/40">ממשיכים לברכה בעוד רגע… או לחצו למטה</p>
           <button
             type="button"
             onClick={() => setStep("blessing")}
@@ -409,6 +449,22 @@ export function EventFlow({
           <p className="text-5xl">✨</p>
           <h2 className="mt-4 font-heading text-2xl">תודה רבה!</h2>
           <p className="mt-2 text-charcoal/70">הכל נשמר. נתראה באירוע!</p>
+          <div className="mt-6 flex flex-col gap-2">
+            <button
+              type="button"
+              onClick={() => setStep("blessing")}
+              className="min-h-[44px] rounded-full border border-charcoal/15 py-2.5 text-sm text-charcoal/70"
+            >
+              שליחת ברכה נוספת
+            </button>
+            <button
+              type="button"
+              onClick={() => setStep("photos")}
+              className="min-h-[44px] rounded-full border border-charcoal/15 py-2.5 text-sm text-charcoal/70"
+            >
+              העלאת תמונות
+            </button>
+          </div>
         </div>
       )}
     </div>

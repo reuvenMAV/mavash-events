@@ -3,14 +3,22 @@
 type GoogleSignInButtonProps = {
   redirectTo?: string;
   label?: string;
+  enabled?: boolean;
 };
 
 export function GoogleSignInButton({
   redirectTo = "/dashboard",
   label = "המשך עם Google",
+  enabled = true,
 }: GoogleSignInButtonProps) {
-  const enabled = Boolean(process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID?.trim());
-  if (!enabled) return null;
+  if (!enabled) {
+    return (
+      <div className="rounded-xl border border-dashed border-charcoal/15 bg-charcoal/[0.02] px-4 py-3 text-center text-xs text-charcoal/50">
+        התחברות עם Google — הגדר <code dir="ltr">GOOGLE_CLIENT_ID</code> ב-Vercel (ראה{" "}
+        <code>docs/GOOGLE_AUTH.md</code>)
+      </div>
+    );
+  }
 
   const href = `/api/auth/google?next=${encodeURIComponent(redirectTo)}`;
 

@@ -20,7 +20,7 @@ const GUEST_ACTIONS = new Set([
   "uploadPhoto",
 ]);
 
-const TOKEN_ACTIONS = new Set(["getEvent", "rsvp", "blessing", "uploadPhoto"]);
+const TOKEN_ACTIONS = new Set(["getEvent", "rsvp", "blessing", "uploadPhoto", "markComplete"]);
 
 const ADMIN_ACTIONS = new Set([
   "adminPing",
@@ -289,6 +289,10 @@ export async function POST(request: Request) {
             await backend.uploadPhotos(guestId, files, { guestId, eventId })
           );
         }
+        case "markComplete":
+          return NextResponse.json(
+            await backend.markComplete({ guestId, eventId })
+          );
         default:
           break;
       }

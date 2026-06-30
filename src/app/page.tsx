@@ -3,10 +3,11 @@ import Image from "next/image";
 import { FolderPlus, Sparkles, AlertCircle } from "lucide-react";
 import { hasGasBackend } from "@/lib/gas-server";
 import { EVENT_IMAGES } from "@/lib/event-images";
+import { DEMO_EVENT_NAME, getDemoHref } from "@/lib/demo";
+import { isGoogleAuthEnabled } from "@/lib/google-oauth";
 
-const DEMO_SLUG = "noam-bar-mitzvah";
-const DEMO_EVENT_NAME = "בר מצווה של אבנר";
-const demoToken = process.env.NEXT_PUBLIC_DEMO_EVENT_TOKEN?.trim();
+const demoHref = getDemoHref();
+const googleAuth = isGoogleAuthEnabled();
 
 const EVENT_TYPES = [
   { emoji: "🎉", label: "בר מצווה" },
@@ -29,9 +30,6 @@ const FEATURES = [
 
 export default function HomePage() {
   const gasReady = hasGasBackend();
-  const demoHref = demoToken
-    ? `/e/${DEMO_SLUG}?t=${encodeURIComponent(demoToken)}`
-    : null;
 
   return (
     <main className="min-h-screen bg-[#faf8f5]">
@@ -68,14 +66,20 @@ export default function HomePage() {
               >
                 התחברות
               </Link>
-              {demoHref ? (
-                <Link
-                  href={demoHref}
-                  className="rounded-full border border-white/30 px-6 py-3 text-sm opacity-90 transition hover:bg-white/10"
+              {googleAuth ? (
+                <a
+                  href="/api/auth/google?next=/dashboard"
+                  className="inline-flex items-center gap-2 rounded-full border border-white/30 bg-white/10 px-6 py-3 text-sm transition hover:bg-white/20"
                 >
-                  דוגמה: {DEMO_EVENT_NAME}
-                </Link>
+                  Google
+                </a>
               ) : null}
+              <Link
+                href={demoHref || "/demo"}
+                className="rounded-full border border-white/30 px-6 py-3 text-sm opacity-90 transition hover:bg-white/10"
+              >
+                דוגמה: {DEMO_EVENT_NAME}
+              </Link>
             </div>
           </div>
         </div>

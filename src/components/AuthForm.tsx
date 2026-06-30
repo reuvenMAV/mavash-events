@@ -8,9 +8,11 @@ import { GoogleSignInButton } from "@/components/GoogleSignInButton";
 export function AuthForm({
   mode,
   redirectTo = "/dashboard",
+  googleEnabled = false,
 }: {
   mode: "login" | "register";
   redirectTo?: string;
+  googleEnabled?: boolean;
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -19,7 +21,6 @@ export function AuthForm({
   const [password, setPassword] = useState("");
   const [error, setError] = useState(urlError || "");
   const [loading, setLoading] = useState(false);
-  const googleEnabled = Boolean(process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID?.trim());
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -51,9 +52,10 @@ export function AuthForm({
       </h1>
       <p className="mt-2 text-center text-sm text-charcoal/60">MAVASH Events</p>
 
-      {googleEnabled && (
+      {googleEnabled ? (
         <div className="mt-8 space-y-4">
           <GoogleSignInButton
+            enabled
             redirectTo={redirectTo}
             label={mode === "register" ? "הרשמה עם Google" : "התחברות עם Google"}
           />
@@ -62,6 +64,10 @@ export function AuthForm({
             או עם אימייל
             <span className="h-px flex-1 bg-charcoal/10" />
           </div>
+        </div>
+      ) : (
+        <div className="mt-8">
+          <GoogleSignInButton enabled={false} />
         </div>
       )}
 
