@@ -192,6 +192,8 @@ function doPost(e) {
         return jsonResponse_(createUser_(body));
       case "getUserByEmail":
         return jsonResponse_(getUserByEmail_(body));
+      case "getOrCreateOAuthUser":
+        return jsonResponse_(getOrCreateOAuthUser_(body));
       case "ownerListEvents":
         return jsonResponse_(ownerListEvents_(body));
       case "ownerCreateEvent":
@@ -1332,6 +1334,33 @@ function createUser_(body) {
     createdAt: nowIso_(),
   });
   return { userId: userId, email: email, plan: "free" };
+}
+
+function getOrCreateOAuthUser_(body) {
+  requireInternal_(body);
+  var email = String(body.email || "").trim().toLowerCase();
+  var provider = String(body.provider || "google").trim().toLowerCase();
+  if (!email) throw new Error("חסר אימייל");
+  var existing = sheetToObjects_(SHEETS.USERS).find(function (u) {
+    return String(u.email).toLowerCase() === email;
+  });
+  if (existing) {
+    return {
+      userId: String(existing.userId),
+      email: String(existing.email),
+      plan: String(existing.plan || "free"),
+      isNew: false,
+    };
+  }
+  var userId = uuid_();
+  appendRow_(SHEETS.USERS, {
+    userId: userId,
+    email: email,
+    passwordHash: "oauth:" + provider,
+    plan: "free",
+    createdAt: nowIso_(),
+  });
+  return { userId: userId, email: email, plan: "free", isNew: true };
 }
 
 function getUserByEmail_(body) {

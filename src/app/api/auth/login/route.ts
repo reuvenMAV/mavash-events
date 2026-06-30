@@ -34,6 +34,13 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "אימייל או סיסמה שגויים" }, { status: 401 });
     }
 
+    if (user.passwordHash.startsWith("oauth:")) {
+      return NextResponse.json(
+        { error: "חשבון זה מחובר ל-Google — התחברו עם Google" },
+        { status: 401 }
+      );
+    }
+
     const ok = await bcrypt.compare(password, user.passwordHash);
     if (!ok) {
       return NextResponse.json({ error: "אימייל או סיסמה שגויים" }, { status: 401 });

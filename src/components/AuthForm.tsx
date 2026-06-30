@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
+import { GoogleSignInButton } from "@/components/GoogleSignInButton";
 
 export function AuthForm({
   mode,
@@ -12,10 +13,13 @@ export function AuthForm({
   redirectTo?: string;
 }) {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const urlError = searchParams.get("error");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [error, setError] = useState("");
+  const [error, setError] = useState(urlError || "");
   const [loading, setLoading] = useState(false);
+  const googleEnabled = Boolean(process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID?.trim());
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -47,7 +51,21 @@ export function AuthForm({
       </h1>
       <p className="mt-2 text-center text-sm text-charcoal/60">MAVASH Events</p>
 
-      <form onSubmit={onSubmit} className="mt-8 space-y-4">
+      {googleEnabled && (
+        <div className="mt-8 space-y-4">
+          <GoogleSignInButton
+            redirectTo={redirectTo}
+            label={mode === "register" ? "הרשמה עם Google" : "התחברות עם Google"}
+          />
+          <div className="flex items-center gap-3 text-xs text-charcoal/40">
+            <span className="h-px flex-1 bg-charcoal/10" />
+            או עם אימייל
+            <span className="h-px flex-1 bg-charcoal/10" />
+          </div>
+        </div>
+      )}
+
+      <form onSubmit={onSubmit} className={googleEnabled ? "mt-4 space-y-4" : "mt-8 space-y-4"}>
         <input
           type="email"
           required
