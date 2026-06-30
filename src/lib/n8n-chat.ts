@@ -26,6 +26,7 @@ export type ChatContext = {
   brand?: string;
   source?: string;
   eventSlug?: string;
+  eventId?: string;
   eventName?: string;
 };
 
@@ -51,6 +52,7 @@ export async function sendChatMessage(
         pagePath,
         brand: context?.brand || "MAVASH Events",
         eventSlug: context?.eventSlug || "",
+        eventId: context?.eventId || "",
         eventName: context?.eventName || "",
       },
     }),
