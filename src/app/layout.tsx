@@ -1,3 +1,4 @@
+import { SiteAssist } from "@/components/SiteAssist";
 import type { Metadata } from "next";
 import { Frank_Ruhl_Libre, Heebo } from "next/font/google";
 import "./globals.css";
@@ -23,7 +24,10 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="he" dir="rtl" className={`${heebo.variable} ${frankRuhl.variable} h-full`}>
-      <body className="min-h-full font-body antialiased">{children}</body>
+      <body className="min-h-full font-body antialiased">
+        {children}
+        <SiteAssist />
+      </body>
     </html>
   );
 }

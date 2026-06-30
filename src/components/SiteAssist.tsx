@@ -7,18 +7,22 @@ import { defaultChatConfig, whatsappNumber } from "@/lib/chat-config";
 
 export function SiteAssist() {
   const pathname = usePathname() || "";
-  const eventMatch = pathname.match(/^\/e\/([^/]+)/);
-  const eventSlug = eventMatch?.[1];
+  const eventSlugMatch = pathname.match(/^\/e\/([^/]+)/);
+  const eventIdMatch = pathname.match(/^\/event\/([^/]+)/);
+  const eventSlug = eventSlugMatch?.[1];
+  const eventId = eventIdMatch?.[1];
 
   const chatConfig = {
     ...defaultChatConfig,
-    initialMessage: eventSlug
-      ? `היי! 👋 שאלו אותי על האירוע — איך מאשרים הגעה (RSVP), שולחים ברכה, או מעלים תמונות. הקישור שלכם כבר מזהה אתכם.`
-      : defaultChatConfig.initialMessage,
-    subtitle: eventSlug ? "עוזר לאורחי האירוע" : defaultChatConfig.subtitle,
+    initialMessage:
+      eventSlug || eventId
+        ? `היי! 👋 שאלו אותי על האירוע — איך מאשרים הגעה (RSVP), שולחים ברכה, או מעלים תמונות.`
+        : defaultChatConfig.initialMessage,
+    subtitle:
+      eventSlug || eventId ? "עוזר לאורחי האירוע" : defaultChatConfig.subtitle,
   };
 
-  if (pathname.startsWith("/dashboard")) return null;
+  if (pathname.startsWith("/dashboard") || pathname.startsWith("/admin")) return null;
 
   return (
     <>
@@ -27,7 +31,12 @@ export function SiteAssist() {
         context={{
           brand: "MAVASH Events",
           eventSlug,
-          source: eventSlug ? `אירוע /e/${eventSlug}` : "אתר — MAVASH Events",
+          eventId,
+          source: eventSlug
+            ? `אירוע /e/${eventSlug}`
+            : eventId
+              ? `אירוע /event/${eventId}`
+              : "אתר — MAVASH Events",
         }}
       />
       <WhatsAppFloat whatsapp={whatsappNumber} />
