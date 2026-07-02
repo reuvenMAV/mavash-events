@@ -10,6 +10,13 @@
 
 ראו [BACKUP-PRE-SUPABASE.md](./BACKUP-PRE-SUPABASE.md).
 
+## פרויקט Supabase (מוגדר)
+
+- **Project:** `mavash-events`
+- **Ref:** `vkdmskbgmcqlfsgjkxde`
+- **URL:** `https://vkdmskbgmcqlfsgjkxde.supabase.co`
+- **Region:** Europe (eu-west-1)
+
 ## 1. פרויקט Supabase
 
 1. [supabase.com](https://supabase.com) → New project

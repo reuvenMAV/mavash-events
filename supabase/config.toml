@@ -1,5 +1,5 @@
 # Minimal Supabase CLI config — link after: npx supabase login && npx supabase link
-project_id = ""
+project_id = "vkdmskbgmcqlfsgjkxde"
 
 [api]
 enabled = true
