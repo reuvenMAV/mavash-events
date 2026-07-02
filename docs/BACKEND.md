@@ -13,7 +13,7 @@ Apps Script is the **default backend for MVP**. Be aware of limits:
 Heavy workloads (50 photos × many users) can hit execution time or daily quotas.  
 **Mitigation today:** client-side image compression, batched uploads (10), rate limiting on `/api/events`.
 
-**Future:** swap `GasEventsBackend` → `FirestoreEventsBackend` (or Supabase) without changing React components — only `src/lib/backend/`.
+**Future:** swap owner events to Supabase (phase 1 live) — see [SUPABASE_SETUP.md](./SUPABASE_SETUP.md). Guest flows still use GAS via `HybridEventsBackend`.
 
 **Integrations:** n8n/HERMES webhooks, Sheets hybrid, image assets — see [INTEGRATIONS.md](INTEGRATIONS.md).
 
