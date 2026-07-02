@@ -1,0 +1,8 @@
+# Minimal Supabase CLI config — link after: npx supabase login && npx supabase link
+project_id = ""
+
+[api]
+enabled = true
+
+[db]
+major_version = 15
