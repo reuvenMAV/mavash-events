@@ -51,15 +51,18 @@ export async function GET(request: Request) {
       return redirectWithError(request, "שרת לא מוגדר");
     }
 
-    const user = await gasRequest<{
-      userId: string;
-      email: string;
-      plan: string;
-    }>("getOrCreateOAuthUser", {
-      email: profile.email,
-      provider: "google",
-      internalSecret,
-    });
+    const existing = await gasRequest<{ user: { userId: string; email: string; plan: string } | null }>(
+      "getUserByEmail",
+      { email: profile.email, internalSecret }
+    );
+
+    const user =
+      existing.user ??
+      (await gasRequest<{ userId: string; email: string; plan: string }>("createUser", {
+        email: profile.email,
+        passwordHash: "oauth:google",
+        internalSecret,
+      }));
 
     await setSession({
       userId: user.userId,

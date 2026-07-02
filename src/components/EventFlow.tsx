@@ -79,7 +79,9 @@ export function EventFlow({
   const activeGuestId =
     session?.guestId || (ctx.mode === "guest" ? ctx.guestId : "");
 
-  const canUseGuestSteps = Boolean(activeGuestId);
+  // Token links (דמו / שיתוף) — אפשר ברכה ותמונות מיד, כמו בגרסה המקורית.
+  // קישור אישי (QR) כבר מגיע עם guestId.
+  const canUseGuestSteps = ctx.mode === "token" || Boolean(activeGuestId);
 
   useEffect(() => {
     try {
@@ -151,16 +153,21 @@ export function EventFlow({
 
   async function onBlessingSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!activeGuestId) {
+    if (!activeGuestId && ctx.mode !== "token") {
       setError("קודם מאשרים הגעה");
       setStep("rsvp");
+      return;
+    }
+    const guestName = (displayName || name).trim();
+    if (ctx.mode === "token" && !guestName) {
+      setError("נא למלא שם (בשלב אישור הגעה או למטה)");
       return;
     }
     if (!blessing.trim()) return;
     setLoading(true);
     setError("");
     try {
-      await submitBlessing(ctx, blessing.trim(), activeGuestId);
+      await submitBlessing(ctx, blessing.trim(), activeGuestId, guestName);
       setStep("photos");
     } catch (err) {
       setError(err instanceof Error ? err.message : "שגיאה");
@@ -184,7 +191,12 @@ export function EventFlow({
 
   async function onUploadSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!activeGuestId || !files.length) {
+    if (!activeGuestId && ctx.mode !== "token") {
+      setError("קודם מאשרים הגעה");
+      setStep("rsvp");
+      return;
+    }
+    if (!files.length) {
       setError("בחרו לפחות תמונה אחת");
       return;
     }
@@ -349,6 +361,18 @@ export function EventFlow({
           </h2>
           <p className="text-sm text-charcoal/60">אופציונלי — אפשר לדלג</p>
 
+          {ctx.mode === "token" && !displayName && (
+            <label className="block">
+              <span className="text-sm text-charcoal/60">השם שלכם</span>
+              <input
+                className="mt-1 w-full rounded-xl border border-charcoal/15 px-4 py-3 text-base outline-none focus:border-gold"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="ישראל ישראלי"
+              />
+            </label>
+          )}
+
           <textarea
             rows={5}
             className="w-full rounded-xl border border-charcoal/15 px-4 py-3 text-base outline-none focus:border-gold"
@@ -388,6 +412,7 @@ export function EventFlow({
           <h2 className="font-heading text-xl">שיתוף תמונות</h2>
           <p className="text-sm text-charcoal/60">
             עד {UPLOAD_LIMITS.maxFilesPerBatch} תמונות · דחיסה אוטומטית
+            {ctx.mode === "token" && !activeGuestId ? " · אפשר גם בלי אישור הגעה" : ""}
           </p>
 
           <input

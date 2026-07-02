@@ -40,6 +40,9 @@ with open('$WF_JSON') as f:
     wf=json.load(f)
 wf.pop('id', None)
 wf.pop('active', None)
+wf.pop('meta', None)
+wf.pop('pinData', None)
+wf.setdefault('settings', {'executionOrder': 'v1'})
 print(json.dumps(wf))
 ")
 

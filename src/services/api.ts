@@ -81,14 +81,26 @@ export async function submitRsvp(ctx: FlowContext, payload: RsvpInput) {
   return post<RsvpResult>(base, ctx.mode === "token" ? { accessToken: ctx.accessToken } : undefined);
 }
 
-export async function submitBlessing(ctx: FlowContext, message: string, guestId: string) {
+export async function submitBlessing(
+  ctx: FlowContext,
+  message: string,
+  guestId: string,
+  guestName: string
+) {
   const body =
     ctx.mode === "guest"
-      ? { action: "blessing", eventId: ctx.eventId, guestId: ctx.guestId, message }
+      ? {
+          action: "blessing",
+          eventId: ctx.eventId,
+          guestId,
+          guestName,
+          message,
+        }
       : {
           action: "blessing",
           slug: ctx.slug,
           guestId,
+          guestName,
           message,
         };
   return post<{ success: boolean; blessingId: string }>(

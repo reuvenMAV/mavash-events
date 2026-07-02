@@ -40,9 +40,10 @@ export function EventStepNav({
             type="button"
             disabled={locked}
             onClick={() => onSelect(item.id)}
+            title={locked ? "זמין אחרי אישור הגעה" : undefined}
             className={`rounded-xl px-2 py-3 text-center text-xs transition sm:text-sm ${
               locked
-                ? "cursor-not-allowed text-charcoal/30"
+                ? "cursor-not-allowed border border-dashed border-charcoal/15 text-charcoal/45"
                 : isActive
                   ? "font-medium text-charcoal"
                   : "text-charcoal/60 hover:bg-charcoal/5"

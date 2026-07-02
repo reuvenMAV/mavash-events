@@ -54,15 +54,15 @@ export interface EventsBackend {
 
   submitBlessing(
     slug: string,
-    guestId: string,
+    guestName: string,
     message: string,
-    ctx: GuestContext
+    ctx: GuestContext & { accessToken?: string }
   ): Promise<{ success: boolean; blessingId: string }>;
 
   uploadPhotos(
-    guestId: string,
+    slug: string,
     files: PhotoFilePayload[],
-    ctx: GuestContext
+    ctx: GuestContext & { accessToken?: string }
   ): Promise<{ photos: { photoId: string; driveUrl: string }[] }>;
 
   markComplete(ctx: GuestContext): Promise<{ success: boolean }>;

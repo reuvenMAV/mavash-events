@@ -596,6 +596,9 @@
     }
   },
   "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
   "meta": {
     "instanceId": "71f33772c542325c132515b6972d67aefe548973786e1982c634f2d97a910933",
     "mavashChatWebhookId": "b8e4f1a2-3c6d-4e8f-9a1b-2d3e4f5a6b7c"

@@ -44,29 +44,76 @@ export class GasEventsBackend implements EventsBackend {
     payload: RsvpPayload & { guestId?: string; eventId?: string },
     access?: AccessContext
   ) {
-    return gasRequest<{
+    const attending = payload.attending === "no" ? "no" : "yes";
+    const body = {
+      slug: payload.slug,
+      name: payload.name,
+      phone: payload.phone,
+      status: attending,
+      attending,
+      guestsCount: payload.guestsCount,
+      notes: payload.notes,
+      guestId: payload.guestId,
+      eventId: payload.eventId,
+      ...(access ? { accessToken: access.accessToken } : {}),
+    };
+
+    const result = await gasRequest<{
       success: boolean;
       guestId: string;
-      rsvpId: string;
-      attending: string;
-    }>("rsvp", {
-      ...payload,
-      ...(access ? { accessToken: access.accessToken } : {}),
-    });
+      rsvpId?: string;
+      inviteToken?: string;
+    }>("submitRsvp", body);
+
+    return {
+      success: result.success,
+      guestId: result.guestId,
+      rsvpId: result.rsvpId || result.inviteToken || result.guestId,
+      attending,
+    };
   }
 
-  async submitBlessing(_slug: string, guestId: string, message: string, ctx: GuestContext) {
-    return gasRequest<{ success: boolean; blessingId: string }>("blessing", {
-      guestId,
+  async submitBlessing(
+    slug: string,
+    guestName: string,
+    message: string,
+    ctx: GuestContext & { accessToken?: string }
+  ) {
+    if (ctx.accessToken) {
+      return gasRequest<{ success: boolean; blessingId: string }>("addBlessing", {
+        slug,
+        guestName,
+        message,
+        accessToken: ctx.accessToken,
+      });
+    }
+
+    return gasRequest<{ success: boolean; blessingId: string }>("addBlessing", {
+      slug,
+      guestName,
       message,
+      guestId: ctx.guestId,
       eventId: ctx.eventId,
     });
   }
 
-  async uploadPhotos(guestId: string, files: PhotoFilePayload[], ctx: GuestContext) {
-    return gasRequest<{ photos: { photoId: string; driveUrl: string }[] }>("uploadPhoto", {
-      guestId,
+  async uploadPhotos(
+    slug: string,
+    files: PhotoFilePayload[],
+    ctx: GuestContext & { accessToken?: string }
+  ) {
+    if (ctx.accessToken) {
+      return gasRequest<{ photos: { photoId: string; driveUrl: string }[] }>("uploadPhotos", {
+        slug,
+        files,
+        accessToken: ctx.accessToken,
+      });
+    }
+
+    return gasRequest<{ photos: { photoId: string; driveUrl: string }[] }>("uploadPhotos", {
+      slug,
       files,
+      guestId: ctx.guestId,
       eventId: ctx.eventId,
     });
   }
@@ -136,78 +183,71 @@ export class GasEventsBackend implements EventsBackend {
     return { tenantId: ctx.tenantId, internalSecret: ctx.internalSecret, ...extra };
   }
 
+  /** Deployed GAS uses legacy names (createEvent, listEvents) — not owner* prefix. */
+  private async ownerGasRequest<T>(gasAction: string, ctx: OwnerContext, extra: object = {}) {
+    return gasRequest<T>(gasAction, this.ownerPayload(ctx, extra));
+  }
+
   async ownerListEvents(ctx: OwnerContext) {
-    return gasRequest<{ events: EventRecord[] }>("ownerListEvents", this.ownerPayload(ctx));
+    return this.ownerGasRequest<{ events: EventRecord[] }>("listEvents", ctx);
   }
 
   async ownerCreateEvent(payload: CreateEventPayload, ctx: OwnerContext) {
-    return gasRequest<{
+    return this.ownerGasRequest<{
       success: boolean;
       eventId: string;
       slug: string;
       publicToken: string;
-    }>("ownerCreateEvent", this.ownerPayload(ctx, payload));
+    }>("createEvent", ctx, payload);
   }
 
   async ownerGetStats(slug: string, ctx: OwnerContext) {
-    return gasRequest<{ stats: import("@/types/events").EventStats }>(
-      "ownerGetStats",
-      this.ownerPayload(ctx, { slug })
+    return this.ownerGasRequest<{ stats: import("@/types/events").EventStats }>(
+      "getStats",
+      ctx,
+      { slug }
     );
   }
 
   async ownerListGuestsEngagement(slug: string, ctx: OwnerContext) {
-    return gasRequest<{ guests: GuestEngagementRow[] }>(
-      "ownerListGuestsEngagement",
-      this.ownerPayload(ctx, { slug })
+    const result = await this.ownerGasRequest<{ guests: GuestEngagementRow[] }>(
+      "listGuests",
+      ctx,
+      { slug }
     );
+    return { guests: result.guests || [] };
   }
 
   async ownerListBlessings(slug: string, ctx: OwnerContext) {
-    return gasRequest<{ blessings: BlessingRow[] }>(
-      "ownerListBlessings",
-      this.ownerPayload(ctx, { slug })
-    );
+    return this.ownerGasRequest<{ blessings: BlessingRow[] }>("listBlessings", ctx, { slug });
   }
 
   async ownerListPhotos(slug: string, ctx: OwnerContext) {
-    return gasRequest<{ photos: PhotoRow[] }>(
-      "ownerListPhotos",
-      this.ownerPayload(ctx, { slug })
-    );
+    return this.ownerGasRequest<{ photos: PhotoRow[] }>("listPhotos", ctx, { slug });
   }
 
-  async ownerListActivity(slug: string, ctx: OwnerContext) {
-    return gasRequest<{ activity: ActivityRow[] }>(
-      "ownerListActivity",
-      this.ownerPayload(ctx, { slug })
-    );
+  async ownerListActivity(_slug: string, _ctx: OwnerContext) {
+    return { activity: [] as ActivityRow[] };
   }
 
-  async ownerGetRsvps(slug: string, ctx: OwnerContext) {
-    return gasRequest<{ rsvps: RsvpRow[] }>("ownerGetRsvps", this.ownerPayload(ctx, { slug }));
+  async ownerGetRsvps(_slug: string, _ctx: OwnerContext) {
+    return { rsvps: [] as RsvpRow[] };
   }
 
   async ownerCreateGuest(
-    slug: string,
-    name: string,
-    ctx: OwnerContext,
-    opts?: { phone?: string; email?: string }
-  ) {
-    return gasRequest<{ guestId: string; inviteUrl: string; qrUrl: string }>(
-      "ownerCreateGuest",
-      this.ownerPayload(ctx, { slug, name, phone: opts?.phone, email: opts?.email })
-    );
+    _slug: string,
+    _name: string,
+    _ctx: OwnerContext,
+    _opts?: { phone?: string; email?: string }
+  ): Promise<{ guestId: string; inviteUrl: string; qrUrl: string }> {
+    throw new Error("הוספת מוזמנים אישיים עדיין לא זמינה — עדכנו את Apps Script (createGuest)");
   }
 
-  async ownerGenerateMemoryBook(slug: string, ctx: OwnerContext) {
-    return gasRequest<MemoryBook>("ownerGenerateMemoryBook", this.ownerPayload(ctx, { slug }));
+  async ownerGenerateMemoryBook(_slug: string, _ctx: OwnerContext): Promise<MemoryBook> {
+    throw new Error("ספר זיכרונות עדיין לא זמין בשרת הנוכחי");
   }
 
-  async ownerGetMemoryBook(slug: string, ctx: OwnerContext) {
-    return gasRequest<{ memoryBook: MemoryBook | null }>(
-      "ownerGetMemoryBook",
-      this.ownerPayload(ctx, { slug })
-    );
+  async ownerGetMemoryBook(_slug: string, _ctx: OwnerContext) {
+    return { memoryBook: null as MemoryBook | null };
   }
 }

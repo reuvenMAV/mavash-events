@@ -241,12 +241,17 @@ export async function POST(request: Request) {
         }
         case "blessing":
           return NextResponse.json(
-            await backend.submitBlessing(slug, guestId, String(body.message || ""), ctx)
+            await backend.submitBlessing(
+              slug,
+              String(body.guestName || body.name || ""),
+              String(body.message || ""),
+              ctx
+            )
           );
         case "uploadPhoto": {
           const files =
             (body.files as { name: string; mimeType: string; dataBase64: string }[]) || [];
-          return NextResponse.json(await backend.uploadPhotos(guestId, files, ctx));
+          return NextResponse.json(await backend.uploadPhotos(slug, files, ctx));
         }
         default:
           break;
@@ -277,16 +282,20 @@ export async function POST(request: Request) {
           return NextResponse.json(
             await backend.submitBlessing(
               slug,
-              guestId,
+              String(body.guestName || body.name || ""),
               String(body.message || ""),
-              { guestId, eventId }
+              { guestId, eventId, accessToken: accessToken! }
             )
           );
         case "uploadPhoto": {
           const files =
             (body.files as { name: string; mimeType: string; dataBase64: string }[]) || [];
           return NextResponse.json(
-            await backend.uploadPhotos(guestId, files, { guestId, eventId })
+            await backend.uploadPhotos(slug, files, {
+              guestId,
+              eventId,
+              accessToken: accessToken!,
+            })
           );
         }
         case "markComplete":
